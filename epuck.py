@@ -22,6 +22,7 @@ leftMotor.setPosition(float("inf"))
 rightMotor.setPosition(float("inf"))
 leftMotor.setVelocity(0.0)
 rightMotor.setVelocity(0.0)
+
 min_area = 100
 max_area = 500000
 
@@ -45,6 +46,8 @@ lost = 0
 lost_frames = 5
 
 #  A* PATHFINDING
+
+path = None  # path needs to be remembered outside of timestep
 
 ps0 = robot.getDevice("ps0")
 ps1 = robot.getDevice("ps1")
@@ -76,7 +79,7 @@ static_occupied_cells = (
 # + [(a, b) for b in range(14, 19) for a in range(55, 60)]
 
 
-for iy, ix in static_occupied_cells:
+for ix, iy in static_occupied_cells:
     grid[ix][iy] = 1  # extra walls and recycling points set to occupied
 
 
