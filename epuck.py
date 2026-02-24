@@ -38,7 +38,7 @@ width = camera.getWidth()
 cnn_area_stop = cnn_area_frac * (width * height)  # how many pixels should we have in frame before we stop
 
 # stop centering jitter
-uncentre_confirm_frames = 5  # must be uncentred this many frames before we turn
+uncentre_confirm_frames = 5  # must be uncentered this many frames before we turn
 centre_confirm_frames = 2  # must be centred this many frames before we go forward
 
 lost = 0
@@ -52,7 +52,6 @@ ps2 = robot.getDevice("ps2")
 ps0.enable(timestep)
 ps1.enable(timestep)
 ps2.enable(timestep)
-
 
 arena_x = 3.0
 arena_y = 2.0
@@ -71,14 +70,15 @@ for a in range(nx):
             grid[a][b] = 1  # youre on the edge of the map, this is blocked space
 
 static_occupied_cells = (
-        [(41, b) for b in range(9, 40)])
-        #+ [(a, b) for b in range(35, 40) for a in range(50, 55)]
-        #+ [(a, b) for b in range(24, 29) for a in range(55, 60)]
-        #+ [(a, b) for b in range(14, 19) for a in range(55, 60)]
+    [(41, b) for b in range(9, 40)])
+# + [(a, b) for b in range(35, 40) for a in range(50, 55)]
+# + [(a, b) for b in range(24, 29) for a in range(55, 60)]
+# + [(a, b) for b in range(14, 19) for a in range(55, 60)]
 
 
 for a, b in static_occupied_cells:
     grid[a][b] = 1  # extra walls and recycling points set to occupied
+
 
 def clamp(v, low, high):
     # keep cells between min max cells. some objects may leak into occupied external cells
@@ -88,67 +88,75 @@ def clamp(v, low, high):
         return high
     return v
 
-def gps_to_cell(x,y):
+
+def gps_to_cell(x, y):
     # shift x from [-arena_x/2, +arena_x/2] into [0, arena_x]
-    shifted_x = x + arena_x / 2 # map on x axis goes from -1.5 to +1.5, we are centred around 0
-    shifted_y = y + arena_y / 2 # -1 to + 1 on y axis
+    shifted_x = x + arena_x / 2  # map on x axis goes from -1.5 to +1.5, we are centred around 0
+    shifted_y = y + arena_y / 2  # -1 to + 1 on y axis
 
     # convert from  meters to cells
     ix = int(shifted_x / cell_x)
     iy = int(shifted_y / cell_y)
 
     # clamp indices so we never go outside the indexing, lists cannot be -1 and 60 doesnt exist in lists as they count from 0
-    ix = clamp(ix, 0, nx - 1) # 60 rows in list space is 0-59
+    ix = clamp(ix, 0, nx - 1)  # 60 rows in list space is 0-59
     iy = clamp(iy, 0, ny - 1)
 
     # return grid coordinate
-    return (ix, iy)
+    return ix, iy
 
-def manhattan(a, b): # for 4 distance movement
+
+def manhattan(a, b):  # for 4 distance movement
     # a and b are (ix, iy)
-    return abs(a[0] - b[0]) + abs(a[1] - b[1]) # abs means its positive regardless of sign
+    return abs(a[0] - b[0]) + abs(a[1] - b[1])  # abs means its positive regardless of sign
+
 
 def get_neighbours(cell):
-    cx, cy = cell # unpacking tuple
-    candidates = [(cx+1, cy), (cx-1, cy), (cx, cy+1), (cx, cy-1)] # all possible movements for 4 directions
+    cx, cy = cell  # unpacking tuple
+    candidates = [(cx + 1, cy), (cx - 1, cy), (cx, cy + 1), (cx, cy - 1)]  # all possible movements for 4 directions
     neighbours = []
-    for x_candidate, y_candidate in candidates: # check each candidate
-        if 0 <= x_candidate < nx and 0 <= y_candidate < ny: # if cells are within cell list index [0-59]
-            if grid[x_candidate][y_candidate] == 0: # and not occupied
-                neighbours.append((x_candidate, y_candidate)) # they are a neighbour to check
+    for x_candidate, y_candidate in candidates:  # check each candidate
+        if 0 <= x_candidate < nx and 0 <= y_candidate < ny:  # if cells are within cell list index [0-59]
+            if grid[x_candidate][y_candidate] == 0:  # and not occupied
+                neighbours.append((x_candidate, y_candidate))  # they are a neighbour to check
     return neighbours
 
-def astar(grid, start_cell, goal_cell):
+
+def astar(start_cell, goal_cell):
     open_heap = []
-    heapq.heappush(open_heap, (0, start_cell))  #heapq.heappush(yourheaphere, youritemhere) my item is a tuple (f_score, start_cell)
-    came_from = {} # dictionaries for these, came from needs t know the cell it cames from
-    g_score = {start_cell: 0} # g score needs score for cell, its 0 at start
-    directions = [(1,0), (-1,0), (0,1), (0,-1)] # 4 directions we can move in , for 8 this would need to be edited along with heuristic used
+    heapq.heappush(open_heap, (
+        0, start_cell))  # heapq.heappush(yourheaphere, youritemhere) my item is a tuple (f_score, start_cell)
+    came_from = {}  # dictionaries for these, came from needs t know the cell it cames from
+    g_score = {start_cell: 0}  # g score needs score for cell, its 0 at start
     while open_heap:
-        f_score, current_cell = heapq.heappop(open_heap) # smallest item popped off heap
+        f_score, current_cell = heapq.heappop(open_heap)  # smallest item popped off heap
 
         if current_cell == goal_cell:
-           print("goal reached")
-           path = [goal_cell]
-           while path[-1] != start_cell: # while we are not at the start
-               path.append(came_from[path[-1]]) # getting the parent of the prior cells to form the path
-           path.reverse() #reverse so we can follow
-           return path
+            print("goal reached")
+            path = [goal_cell]
+            while path[-1] != start_cell:  # while we are not at the start
+                path.append(came_from[path[-1]])  # getting the parent of the prior cells to form the path
+            path.reverse()  # reverse so we can follow
+            return path
 
         for neighbour_cell in get_neighbours(current_cell):
 
             # print("current:", current_cell, "neighbour:", neighbour_cell)
-            tentative_g = g_score[current_cell] + 1 # we can only move in one direction, tentative g for neighbour is the current cell g score + 1
+            tentative_g = g_score[
+                              current_cell] + 1  # we can only move in one direction, tentative g for neighbour is the current cell g score + 1
 
-            if tentative_g < g_score.get(neighbour_cell, float("inf")): # inf because it may be the first time we discover the cell .get(key, dafault value)
-            # this finds the best g score to reach cell, is the tentative g cheaper than recorded g
-                came_from[neighbour_cell] = current_cell # update came from history for best neighbour cell
-                g_score[neighbour_cell] = tentative_g # update g score for neighbour cell
+            if tentative_g < g_score.get(neighbour_cell,
+                                         float(
+                                             "inf")):  # inf because it may be the first time we discover the cell .get(key, dafault value)
+                # this finds the best g score to reach cell, is the tentative g cheaper than recorded g
+                came_from[neighbour_cell] = current_cell  # update came from history for best neighbour cell
+                g_score[neighbour_cell] = tentative_g  # update g score for neighbour cell
 
                 h = manhattan(neighbour_cell, goal_cell)
                 f = tentative_g + h
                 heapq.heappush(open_heap, (f, neighbour_cell))
     return None
+
 
 # STATE MACHINE, YOU NEED THIS THROUGH THE WHOLE PIPELINE
 
@@ -182,14 +190,14 @@ def visualise(frame):
     cv2.waitKey(1)
 
 
-def bottom_y(rect): # looks at the bottom which helps with what appears closest to robot
+def bottom_y(rect):  # looks at the bottom which helps with what appears closest to robot
     x, y, w, h = rect
     return y + h
 
 
 def rect_centre(rect):
     x, y, w, h = rect
-    return (x + w / 2, y + h / 2)
+    return x + w / 2, y + h / 2
 
 
 def closest_to_locked(rects, locked):
@@ -201,6 +209,7 @@ def closest_to_locked(rects, locked):
     # finds which bounding box is the one you wanted from the last timestep,
     # its recomputed and it will forget, this finds the CLOSEST PIXEL DISTANCE TO YOUR TARGET
     # euclidean distance
+
 
 # MAIN LOOP
 
@@ -363,12 +372,9 @@ while robot.step(timestep) != -1:  # remember its one big loop, the robot has no
     # STATE: CNN CAPTURE
 
     if state == "CNN_CAPTURE":
-
         # print("CNN_CAPTURE READY")
         state = "PATHFIND"
         # if cnn = recycle point identifier:
-
-
 
     if state == "PATHFIND":
         recycle_coord = (1.11, 0.89)
@@ -376,19 +382,18 @@ while robot.step(timestep) != -1:  # remember its one big loop, the robot has no
         goal_cell = gps_to_cell(goal_world_x, goal_world_y)
         print("Goal cell:", goal_cell)
 
-
-        position = gps.getValues()   # need to know where you are to move into cell space
+        position = gps.getValues()  # need to know where you are to move into cell space
         x = position[0]
         y = position[1]
 
-        robot_cell = gps_to_cell(x,y)
+        robot_cell = gps_to_cell(x, y)
         # print(f"gps: ({x:.2f},{y:.2f}) cell:",robot_cell)
-        path = astar(grid, robot_cell, goal_cell)
+        path = astar(robot_cell, goal_cell)
         print(path)
 
-    #astar(grid, start_cell, goal_cell)
-    #edt astar for obstracle detection and replanning
-    #set motors
+    # astar(grid, start_cell, goal_cell)
+    # edt astar for obstracle detection and replanning
+    # set motors
 
     leftMotor.setVelocity(leftSpeed)
     rightMotor.setVelocity(rightSpeed)
