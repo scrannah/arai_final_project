@@ -56,28 +56,28 @@ ps2.enable(timestep)
 arena_x = 3.0
 arena_y = 2.0
 
-nx = 60
-ny = 40
+nx = 60  # 60 cells wide
+ny = 40  # 40 cells height
 
 cell_x = arena_x / nx
 cell_y = arena_y / ny
 
 grid = [[0 for _ in range(ny)] for _ in range(nx)]  # initialise all cells as free until otherwise said
 
-for a in range(nx):
-    for b in range(ny):
-        if a == 0 or a == nx - 1 or b == 0 or b == ny - 1:
-            grid[a][b] = 1  # youre on the edge of the map, this is blocked space
+for ix in range(nx):
+    for iy in range(ny):
+        if ix == 0 or ix == nx - 1 or iy == 0 or iy == ny - 1:
+            grid[ix][iy] = 1  # on the edge of the map, this is blocked space
 
 static_occupied_cells = (
-    [(41, b) for b in range(9, 40)])
+    [(41, iy) for iy in range(9, 40)])
 # + [(a, b) for b in range(35, 40) for a in range(50, 55)]
 # + [(a, b) for b in range(24, 29) for a in range(55, 60)]
 # + [(a, b) for b in range(14, 19) for a in range(55, 60)]
 
 
-for a, b in static_occupied_cells:
-    grid[a][b] = 1  # extra walls and recycling points set to occupied
+for iy, ix in static_occupied_cells:
+    grid[ix][iy] = 1  # extra walls and recycling points set to occupied
 
 
 def clamp(v, low, high):
@@ -106,9 +106,9 @@ def gps_to_cell(x, y):
     return ix, iy
 
 
-def manhattan(a, b):  # for 4 distance movement
+def manhattan(ix, iy):  # for 4 distance movement
     # a and b are (ix, iy)
-    return abs(a[0] - b[0]) + abs(a[1] - b[1])  # abs means its positive regardless of sign
+    return abs(ix[0] - iy[0]) + abs(ix[1] - iy[1])  # abs means its positive regardless of sign
 
 
 def get_neighbours(cell):
@@ -167,7 +167,7 @@ uncentre_count = 0
 centre_count = 0
 
 
-# FUNCTIONS/MATHY BITS
+# FUNCTIONS/MATH BITS
 
 def get_opencv_image(camera_device):
     raw = camera_device.getImage()
