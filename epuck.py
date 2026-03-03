@@ -2,6 +2,7 @@ from controller import Robot
 import numpy as np
 import cv2
 import heapq
+import math
 
 robot = Robot()
 timestep = int(robot.getBasicTimeStep())
@@ -12,6 +13,9 @@ timestep = int(robot.getBasicTimeStep())
 
 gps = robot.getDevice("gps")
 gps.enable(timestep)
+
+inertial_unit = robot.getDevice("inertial unit")
+inertial_unit.enable(timestep)
 
 camera = robot.getDevice("camera(1)")
 camera.enable(timestep)
@@ -47,7 +51,10 @@ lost_frames = 5
 
 #  A* PATHFINDING
 
-path = None  # path needs to be remembered outside of timestep
+path = None  # path needs to be remembered outside timestep
+
+angle_close_enough = 0.20
+waypoint_reached_distance = 0.03
 
 ps0 = robot.getDevice("ps0")
 ps1 = robot.getDevice("ps1")
@@ -109,6 +116,17 @@ def gps_to_cell(x, y):
     return ix, iy
 
 
+def cell_to_gps(ix, iy):
+    left_edge_arena = -arena_x / 2.0  # arena index starts from bottom left edge
+    bottom_edge_arena = -arena_y / 2.0  # -1.5, -1 is index [0,0]
+
+    target_world_x = left_edge_arena + (
+                ix + 0.5) * cell_x  # start from bottom left, add ixy + half cell length to get centre of cell
+    target_world_y = bottom_edge_arena + (iy + 0.5) * cell_y  # then * by cell physical size to get GPS location
+
+    return target_world_x, target_world_y
+
+
 def manhattan(ix, iy):  # for 4 distance movement
     # a and b are (ix, iy)
     return abs(ix[0] - iy[0]) + abs(ix[1] - iy[1])  # abs means its positive regardless of sign
@@ -161,9 +179,40 @@ def astar(start_cell, goal_cell):
     return None
 
 
+def drive_to_waypoint(target_world_x, target_world_y):
+    position = gps.getValues()  # need to know where you are to move into cell space
+    x = position[0]
+    y = position[1]
+
+    robot_yaw = inertial_unit.getRollPitchYaw()[2]
+    vector_x = target_world_x - x  # how muych we need to vector to target
+    vector_y = target_world_y - y  # target subtract current location
+
+    distance_to_target = math.sqrt(vector_x ** 2 + vector_y ** 2)  # euclidean distance
+
+    if distance_to_target < waypoint_reached_distance:
+        leftMotor.setVelocity(0.0)
+        rightMotor.setVelocity(0.0)
+        return True
+
+
+    yaw_needed = math.atan2(vector_y, vector_x)
+    yaw_to_rotate = yaw_needed - robot_yaw
+    if abs(yaw_to_rotate) > angle_close_enough:  # turn to waypoint
+
+        if yaw_to_rotate > 0:  # turn right
+            leftSpeed = -(0.2 * max_speed)
+            rightSpeed = 0.2 * max_speed
+
+
+        else:  # turn left
+
+
+    else:  # forward to waypoint
+
 # STATE MACHINE, YOU NEED THIS THROUGH THE WHOLE PIPELINE
 
-state = "SEARCHING"
+state = "SEARCHING" # start at searching
 locked_rect = None  # store outside of loop, reinitialise within loop when new target is needed
 area_ok_count = 0
 uncentre_count = 0
@@ -210,7 +259,7 @@ def closest_to_locked(rects, locked):
         key=lambda r: (rect_centre(r)[0] - lx) ** 2 + (rect_centre(r)[1] - ly) ** 2
     )
     # finds which bounding box is the one you wanted from the last timestep,
-    # its recomputed and it will forget, this finds the CLOSEST PIXEL DISTANCE TO YOUR TARGET
+    # its recomputed, and it will forget, this finds the CLOSEST PIXEL DISTANCE TO YOUR TARGET
     # euclidean distance
 
 
@@ -268,11 +317,11 @@ while robot.step(timestep) != -1:  # remember its one big loop, the robot has no
             # Lock immediately on the closest object
             locked_rect = max(bounding_rects, key=bottom_y)
             area_ok_count = 0
-            uncenter_count = 0
-            center_count = 0
+            uncentre_count = 0
+            centre_count = 0
             lost = 0
             state = "APPROACHING"
-            print("LOCKED  APPROACHING")
+            print("LOCKED APPROACHING")
         else:
             # Keep scanning
             leftSpeed = 0.2 * max_speed
@@ -284,6 +333,7 @@ while robot.step(timestep) != -1:  # remember its one big loop, the robot has no
     # STATE: APPROACHING
 
     if state == "APPROACHING":
+
         # if we have detections this frame, update where the locked target is
         if len(bounding_rects) > 0 and locked_rect is not None:
             target_rect = closest_to_locked(bounding_rects, locked_rect)
@@ -301,16 +351,25 @@ while robot.step(timestep) != -1:  # remember its one big loop, the robot has no
                 rightMotor.setVelocity(rightSpeed)
                 continue
 
-            # spin until you find again or set as lost and retunr to searching
-
+            # lost is greater than lost frame limit
+            # spin until you find again or set as lost and return to searching
             leftSpeed = 0.15 * max_speed
             rightSpeed = -0.15 * max_speed
             leftMotor.setVelocity(leftSpeed)
             rightMotor.setVelocity(rightSpeed)
-            uncenter_count = 0
-            center_count = 0
+            uncentre_count = 0
+            centre_count = 0
             area_ok_count = 0
-            continue
+
+            if lost > 10:
+                state = "SEARCHING"  # youre mega lost give up and search again
+                locked_rect = None  # give up on that rect
+                leftSpeed = 0.0 * max_speed
+                rightSpeed = 0.0 * max_speed
+                leftMotor.setVelocity(leftSpeed)
+                rightMotor.setVelocity(rightSpeed)  # stop spinning to return to search
+
+            continue  # were lost so continue out of loop, re-enter back at approaching or searching
 
         # Use the locked rect for steering
         x, y, w, h = locked_rect
@@ -350,7 +409,7 @@ while robot.step(timestep) != -1:  # remember its one big loop, the robot has no
         elif centre_count >= centre_confirm_frames:
             # decide if close enough for CNN using bounding box area
             box_area = w * h
-            print(f"box area={box_area:.0f} threshold={cnn_area_stop:.0f}")
+            # print(f"box area={box_area:.0f} threshold={cnn_area_stop:.0f}")
 
             if box_area >= cnn_area_stop:
                 area_ok_count += 1
@@ -367,12 +426,12 @@ while robot.step(timestep) != -1:  # remember its one big loop, the robot has no
                 # Approach forward
                 leftSpeed = 0.2 * max_speed
                 rightSpeed = 0.2 * max_speed
-                print("centred, going forward")
+                # print("centred, going forward")
+        else:
+            leftSpeed = 0.0  # mitigate stale speed if centre counts not met
+            rightSpeed = 0.0
 
-        leftMotor.setVelocity(leftSpeed)
-        rightMotor.setVelocity(rightSpeed)
-
-    # STATE: CNN CAPTURE
+            # STATE: CNN CAPTURE
 
     if state == "CNN_CAPTURE":
         # print("CNN_CAPTURE READY")
