@@ -82,15 +82,15 @@ for ix in range(nx):
             grid[ix][iy] = 1  # on the edge of the map, this is blocked space
 
 static_occupied_cells = (
-        [(41, iy) for iy in range(9, 40)] +
-        [(40, iy) for iy in range(9, 40)] +
-        [(42, iy) for iy in range(9, 40)] +
-        [(41, 8), (40, 8), (42, 8)])
+    [(41, iy) for iy in range(9, 40)]
+  + [(40, iy) for iy in range(9, 40)]
+  + [(42, iy) for iy in range(9, 40)]
+  + [(41, 8), (40, 8), (42, 8)])
 # + [(a, b) for b in range(35, 40) for a in range(50, 55)]
 # + [(a, b) for b in range(24, 29) for a in range(55, 60)]
 # + [(a, b) for b in range(14, 19) for a in range(55, 60)]
 
-dynamic_occupied_cells = ()  # insert obstacles found
+dynamic_occupied_cells = () # insert obstacles found
 
 for ix, iy in static_occupied_cells:
     grid[ix][iy] = 1  # extra walls and recycling points set to occupied
@@ -127,7 +127,7 @@ def cell_to_gps(ix, iy):
     bottom_edge_arena = -arena_y / 2.0  # -1.5, -1 is index [0,0]
 
     target_world_x = left_edge_arena + (
-            ix + 0.5) * cell_x  # start from bottom left, add ixy + half cell length to get centre of cell
+                ix + 0.5) * cell_x  # start from bottom left, add ixy + half cell length to get centre of cell
     target_world_y = bottom_edge_arena + (iy + 0.5) * cell_y  # then * by cell physical size to get GPS location
 
     return target_world_x, target_world_y
@@ -137,25 +137,23 @@ def manhattan(ix, iy):  # for 4 distance movement
     # a and b are (ix, iy)
     return abs(ix[0] - iy[0]) + abs(ix[1] - iy[1])  # abs means its positive regardless of sign
 
-
 def euclidean(neighbour_cell, goal_cell):
     dx = goal_cell[0] - neighbour_cell[0]
     dy = goal_cell[0] - neighbour_cell[0]
-    return math.sqrt(dx * dx + dy * dy)
-
+    return math.sqrt(dx*dx + dy*dy)
 
 def get_neighbours(cell):
     cx, cy = cell  # unpacking tuple
     candidates = [
-        (cx + 1, cy),  # right
-        (cx - 1, cy),  # left
-        (cx, cy + 1),  # up
-        (cx, cy - 1),  # down
-        (cx + 1, cy + 1),  # diagonal up right
-        (cx + 1, cy - 1),  # diagonal down right
-        (cx - 1, cy + 1),  # diagonal up left
-        (cx - 1, cy - 1), ]  # diagonal down left
-    # all possible movements for 8 directions
+    (cx + 1, cy),      # right
+    (cx - 1, cy),      # left
+    (cx, cy + 1),      # up
+    (cx, cy - 1),      # down
+    (cx + 1, cy + 1),  # diagonal up right
+    (cx + 1, cy - 1),  # diagonal down right
+    (cx - 1, cy + 1),  # diagonal up left
+    (cx - 1, cy - 1),]  # diagonal down left
+   # all possible movements for 8 directions
     neighbours = []
     for x_candidate, y_candidate in candidates:  # check each candidate
         if 0 <= x_candidate < nx and 0 <= y_candidate < ny:  # if cells are within cell list index [0-59]
@@ -184,11 +182,10 @@ def astar(start_cell, goal_cell):
         for neighbour_cell in get_neighbours(current_cell):
 
             # print("current:", current_cell, "neighbour:", neighbour_cell)
-            dx = neighbour_cell[0] - current_cell[0]  # check if we moved diagonally
-            dy = neighbour_cell[1] - current_cell[1]  # if these are both not 0, we did
-            step_cost = math.sqrt(2) if (dx != 0 and dy != 0) else 1.0  # if we moved diagonally step cost is square 2
-            tentative_g = g_score[
-                              current_cell] + step_cost  # we can only move in one direction, tentative g for neighbour is the current cell g score + 1
+            dx = neighbour_cell[0] - current_cell[0] # check if we moved diagonally
+            dy = neighbour_cell[1] - current_cell[1] # if these are both not 0, we did
+            step_cost = math.sqrt(2) if (dx != 0 and dy != 0) else 1.0 # if we moved diagonally step cost is square 2
+            tentative_g = g_score[current_cell] + step_cost  # we can only move in one direction, tentative g for neighbour is the current cell g score + 1
 
             if tentative_g < g_score.get(neighbour_cell,
                                          float(
@@ -204,7 +201,7 @@ def astar(start_cell, goal_cell):
 
 
 def drive_to_waypoint(target_world_x, target_world_y):
-    global leftSpeed, rightSpeed  # these need to be global so they can be used outside of function
+    global leftSpeed, rightSpeed # these need to be global so they can be used outside of function
     position = gps.getValues()  # need to know where you are to move into cell space
     x = position[0]
     y = position[1]
@@ -229,18 +226,18 @@ def drive_to_waypoint(target_world_x, target_world_y):
     if abs(yaw_to_rotate) > angle_close_enough:  # turn to waypoint
 
         if yaw_to_rotate > 0:  # turn right
-            leftSpeed = -(0.2 * max_speed)
-            rightSpeed = 0.2 * max_speed
+            leftSpeed = -(0.3 * max_speed)
+            rightSpeed = 0.3 * max_speed
 
         else:  # turn left
-            leftSpeed = 0.2 * max_speed
-            rightSpeed = -(0.2 * max_speed)
+            leftSpeed = 0.3 * max_speed
+            rightSpeed = -(0.3 * max_speed)
 
         return False  # not at target
 
     else:  # forward to waypoint
-        leftSpeed = 0.2 * max_speed
-        rightSpeed = 0.2 * max_speed
+        leftSpeed = 0.5 * max_speed
+        rightSpeed = 0.5 * max_speed
 
         return False  # not at target
 
@@ -475,9 +472,7 @@ while robot.step(timestep) != -1:  # remember its one big loop, the robot has no
         # if cnn = recycle point identifier:
 
     if state == "PATHFIND":
-
-        recycle_coord = (1.11, 0.89)  # metal
-        # recycle coord = the correct coord
+        recycle_coord = (1.11, 0.89)
         world_reset = (0, 0)
         if travelling == "home":
             goal_world_x, goal_world_y = world_reset
@@ -492,7 +487,7 @@ while robot.step(timestep) != -1:  # remember its one big loop, the robot has no
         y = position[1]
 
         robot_cell = gps_to_cell(x, y)
-        # print(robot_cell)
+        #print(robot_cell)
         # print(f"gps: ({x:.2f},{y:.2f}) cell:",robot_cell)
         if planned_path is None:
             planned_path = astar(robot_cell, goal_cell)
@@ -510,12 +505,12 @@ while robot.step(timestep) != -1:  # remember its one big loop, the robot has no
         if current_path_cell >= len(planned_path):  # if we have finished the path
             leftMotor.setVelocity(0.0)
             rightMotor.setVelocity(0.0)
-            planned_path = None  # wipe old path so A* replans for next
-            current_path_cell = 0  # reset index
+            planned_path = None      # wipe old path so A* replans for next
+            current_path_cell = 0    # reset index
 
             if travelling == "recycle_point":
                 travelling = "home"
-                state = "PATHFIND"  # go home next
+                state = "PATHFIND"   # go home next
             elif travelling == "home":
                 travelling = "recycle_point"
                 state = "SEARCHING"  # back to looking for objects
@@ -531,7 +526,7 @@ while robot.step(timestep) != -1:  # remember its one big loop, the robot has no
         reached = drive_to_waypoint(target_world_x, target_world_y)
 
         if reached is True:
-            current_path_cell += 1  # increment after each waypoint is reached
+            current_path_cell += 1 # increment after each waypoint is reached
 
     leftMotor.setVelocity(leftSpeed)
     rightMotor.setVelocity(rightSpeed)

@@ -19,7 +19,6 @@ static_occupied_cells = (
     [(a, b) for b in range(14, 19) for a in range(55, 60)]
 )
 
-dynamic_occupied_cells = ()
 
 while supervisor.step(timestep) != -1:
     # clear background
@@ -37,11 +36,11 @@ while supervisor.step(timestep) != -1:
         y = int((NZ - 1 - b) * cell_h)
         display.fillRectangle(x, y, int(cell_w), int(cell_h))
 
-    display.setColor(0x95C8D8)  # blue
-    for (a, b) in dynamic_occupied_cells:
-        x = int(a * cell_w)
-        y = int((NZ - 1 - b) * cell_h)
-        display.fillRectangle(x, y, int(cell_w), int(cell_h))
+    #display.setColor(0x95C8D8)  # blue
+    #for (a, b) in dynamic_occupied_cells:
+        #x = int(a * cell_w)
+        #y = int((NZ - 1 - b) * cell_h)
+        #display.fillRectangle(x, y, int(cell_w), int(cell_h))
     # draw grid lines
     display.setColor(0x444444)
 
