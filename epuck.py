@@ -518,13 +518,13 @@ class RobotController:
     def handle_pathfind(self):
 
         self.check_for_obstacles()
-
+        goal_cell = None # incase never assigned
         if self.travelling == "home":
             goal_world_x, goal_world_y = self.world_reset
             goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
 
         elif self.travelling == "recycle_point":
-            goal_world_x, goal_world_y = self.recycle_coord
+            goal_world_x, goal_world_y = self.metal_recycle_coord
             goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
 
         x, y, robot_yaw = self.devices.get_pose()
