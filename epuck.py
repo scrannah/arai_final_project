@@ -52,8 +52,7 @@ class RobotDevices:
         robot_yaw = self.inertial_unit.getRollPitchYaw()[2]
         return x, y, robot_yaw
 
-    def get_front_approx(self):
-        # distance sensor debug not using anymore but nice to have
+    def get_front_approx(self):  # fixed missing colon
         val0 = self.ps0.getValue()
         val1 = self.ps1.getValue()
         val2 = self.ps2.getValue()
@@ -91,10 +90,19 @@ class GridMap:
             + [(41, 8), (40, 8), (42, 8)]
         )
 
-        self.dynamic_occupied_cells = ()  # insert obstacles found
+        self.dynamic_occupied_cells = []  # insert obstacles found at runtime
 
         for ix, iy in self.static_occupied_cells:
             self.grid[ix][iy] = 1  # extra walls and recycling points set to occupied
+
+    def mark_obstacle(self, ix, iy):
+        self.grid[ix][iy] = 1
+        self.dynamic_occupied_cells.append((ix, iy))  # track separately from static
+
+    def clear_dynamic_obstacles(self):
+        for ix, iy in self.dynamic_occupied_cells:
+            self.grid[ix][iy] = 0
+        self.dynamic_occupied_cells = [] # clear if no path can be found
 
     def clamp(self, v, low, high):
         # keep cells between min max cells. some objects may leak into occupied external cells
@@ -483,13 +491,34 @@ class RobotController:
         self.current_path_cell = 0
         self.travelling = "recycle_point"
 
-        self.recycle_coord = (1.11, 0.89)
+        self.metal_recycle_coord = (1.11, 0.89)
         self.world_reset = (0, 0)
+
+        # tune this for threshold
+        self.obstacle_threshold = 50
+
+    def check_for_obstacles(self):
+        front_distance = self.devices.get_front_approx()
+
+        if front_distance > self.obstacle_threshold:
+            x, y, robot_yaw = self.devices.get_pose()
+
+            # estimate cell directly in front based on yaw
+            obstacle_x = x + math.cos(robot_yaw) * self.grid_map.cell_x
+            obstacle_y = y + math.sin(robot_yaw) * self.grid_map.cell_y
+
+            ix, iy = self.grid_map.gps_to_cell(obstacle_x, obstacle_y)
+            self.grid_map.mark_obstacle(ix, iy)  # mark in grid and dynamic list
+            self.planned_path = None  # wipe path
+            print(f"Obstacle detected at cell ({ix}, {iy}), replanning")
 
     def handle_cnn_capture(self):
         return "PATHFIND", 0.0, 0.0
 
     def handle_pathfind(self):
+
+        self.check_for_obstacles()
+
         if self.travelling == "home":
             goal_world_x, goal_world_y = self.world_reset
             goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
@@ -518,7 +547,7 @@ class RobotController:
                 self.travelling = "home"  # if we are at the recycle point, change to home to go to after
                 return "PATHFIND", 0.0, 0.0
 
-            elif self.travelling == "home": # if we are at home (0,0)
+            elif self.travelling == "home":  # if we are at home (0,0)
                 self.travelling = "recycle_point"  # reintialise to recycle point for next object
                 self.vision.reset_all_tracking()
                 return "SEARCHING", 0.0, 0.0  # back to looking for objects
