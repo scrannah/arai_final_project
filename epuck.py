@@ -76,7 +76,8 @@ class GridMap:
         self.cell_x = self.arena_x / self.nx
         self.cell_y = self.arena_y / self.ny
 
-        self.grid = [[0 for _ in range(self.ny)] for _ in range(self.nx)]  # initialise all cells as free until otherwise said
+        self.grid = [[0 for _ in range(self.ny)] for _ in
+                     range(self.nx)]  # initialise all cells as free until otherwise said
 
         for ix in range(self.nx):
             for iy in range(self.ny):
@@ -84,13 +85,16 @@ class GridMap:
                     self.grid[ix][iy] = 1  # on the edge of the map, this is blocked space
 
         self.static_occupied_cells = (
-            [(41, iy) for iy in range(9, 40)]
-            + [(40, iy) for iy in range(9, 40)]
-            + [(42, iy) for iy in range(9, 40)]
-            + [(41, 8), (40, 8), (42, 8)]
+                [(41, iy) for iy in range(9, 40)]
+                + [(40, iy) for iy in range(9, 40)]
+                + [(42, iy) for iy in range(9, 40)]
+                + [(41, 8), (40, 8), (42, 8)]
         )
 
         self.dynamic_occupied_cells = []  # insert obstacles found at runtime
+
+        for ix, iy in self.static_occupied_cells:
+            self.grid[ix][iy] = 1  # extra walls and recycling points set to occupied
 
         for ix, iy in self.dynamic_occupied_cells:
             self.grid[ix][iy] = 1  # obstacles detected
@@ -99,10 +103,20 @@ class GridMap:
         self.grid[ix][iy] = 1
         self.dynamic_occupied_cells.append((ix, iy))  # track separately from static
 
+    def mark_obstacle_with_buffer(self, ix, iy, buffer_cells=2):
+        for dx in range(-buffer_cells, buffer_cells + 1):
+            for dy in range(-buffer_cells, buffer_cells + 1):
+                nx = ix + dx
+                ny = iy + dy
+
+                # stay inside grid bounds
+                if 0 <= nx < self.nx and 0 <= ny < self.ny:
+                    self.mark_obstacle(nx, ny)
+
     def clear_dynamic_obstacles(self):
         for ix, iy in self.dynamic_occupied_cells:
             self.grid[ix][iy] = 0
-        self.dynamic_occupied_cells = [] # clear if no path can be found
+        self.dynamic_occupied_cells = []  # clear if no path can be found
 
     def clamp(self, v, low, high):
         # keep cells between min max cells. some objects may leak into occupied external cells
@@ -133,10 +147,10 @@ class GridMap:
         bottom_edge_arena = -self.arena_y / 2.0  # -1.5, -1 is index [0,0]
 
         target_world_x = left_edge_arena + (
-            ix + 0.5
+                ix + 0.5
         ) * self.cell_x  # start from bottom left, add ixy + half cell length to get centre of cell
         target_world_y = bottom_edge_arena + (
-            iy + 0.5
+                iy + 0.5
         ) * self.cell_y  # then * by cell physical size to get GPS location
 
         return target_world_x, target_world_y
@@ -148,10 +162,10 @@ class GridMap:
     def get_neighbours(self, cell):
         cx, cy = cell  # unpacking tuple
         candidates = [
-            (cx + 1, cy),      # right
-            (cx - 1, cy),      # left
-            (cx, cy + 1),      # up
-            (cx, cy - 1),      # down
+            (cx + 1, cy),  # right
+            (cx - 1, cy),  # left
+            (cx, cy + 1),  # up
+            (cx, cy - 1),  # down
             (cx + 1, cy + 1),  # diagonal up right
             (cx + 1, cy - 1),  # diagonal down right
             (cx - 1, cy + 1),  # diagonal up left
@@ -197,12 +211,14 @@ class AStarPlanner:
 
                 dx = neighbour_cell[0] - current_cell[0]  # check if we moved diagonally
                 dy = neighbour_cell[1] - current_cell[1]  # if these are both not 0, we did
-                step_cost = math.sqrt(2) if (dx != 0 and dy != 0) else 1.0  # if we moved diagonally step cost is square 2
-                tentative_g = g_score[current_cell] + step_cost  # tentative g for neighbour is the current cell g score + movement cost
+                step_cost = math.sqrt(2) if (
+                            dx != 0 and dy != 0) else 1.0  # if we moved diagonally step cost is square 2
+                tentative_g = g_score[
+                                  current_cell] + step_cost  # tentative g for neighbour is the current cell g score + movement cost
 
                 if tentative_g < g_score.get(
-                    neighbour_cell,
-                    float("inf")
+                        neighbour_cell,
+                        float("inf")
                 ):  # inf because it may be the first time we discover the cell .get(key, default value)
                     came_from[neighbour_cell] = current_cell  # update came from history for best neighbour cell
                     g_score[neighbour_cell] = tentative_g  # update g score for neighbour cell
@@ -272,7 +288,7 @@ class VisionSystem:
         self.area_confirm_frames = 3  # must be above threshold this many frames in a row
 
         self.cnn_area_stop = self.cnn_area_frac * (
-            self.devices.width * self.devices.height
+                self.devices.width * self.devices.height
         )  # how many pixels should we have in frame before we stop
 
         # stop centering jitter
@@ -497,7 +513,8 @@ class RobotController:
         self.world_reset = (0, 0)
 
         # tune this for threshold
-        self.obstacle_threshold = 50
+        self.obstacle_threshold = 75
+        self.path_start_cell = None
 
     def check_for_obstacles(self):
         front_distance = self.devices.get_front_approx()
@@ -510,18 +527,26 @@ class RobotController:
             obstacle_y = y + math.sin(robot_yaw) * self.grid_map.cell_y
 
             ix, iy = self.grid_map.gps_to_cell(obstacle_x, obstacle_y)
-            self.grid_map.mark_obstacle(ix, iy)  # mark in grid and dynamic list
+
+            self.grid_map.mark_obstacle_with_buffer(self, ix, iy, buffer_cells=2)  # mark in grid and dynamic list
             self.planned_path = None  # wipe path
+
             print(f"Obstacle detected at cell ({ix}, {iy}), replanning")
         return "PATHFIND", 0.0, 0.0
 
     def handle_cnn_capture(self):
-        return "PATHFIND", 0.0, 0.0 # return cnn classifier aswell
+        return "PATHFIND", 0.0, 0.0  # return cnn classifier aswell
 
     def handle_pathfind(self):
+
+        x, y, robot_yaw = self.devices.get_pose()
+        robot_cell = self.grid_map.gps_to_cell(x, y)
+
         if self.planned_path is not None:
-            self.check_for_obstacles() # only check if we are pathfinding
-        goal_cell = None # incase never assigned
+            dist = self.grid_map.manhattan(robot_cell, self.path_start_cell)
+            if dist > 3:  # check if we have moved, dont set the obstacle we have just looked at
+                self.check_for_obstacles()  # only check if we are pathfinding
+        goal_cell = None  # incase never assigned
         if self.travelling == "home":
             goal_world_x, goal_world_y = self.world_reset
             goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
@@ -531,10 +556,8 @@ class RobotController:
             goal_world_x, goal_world_y = self.metal_recycle_coord
             goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
 
-        x, y, robot_yaw = self.devices.get_pose()
-        robot_cell = self.grid_map.gps_to_cell(x, y)
-
         if self.planned_path is None:
+            self.path_start_cell = robot_cell
             self.planned_path = self.planner.astar(robot_cell, goal_cell)
             self.current_path_cell = 0
             print("Replanning from", robot_cell, "to", goal_cell)
@@ -545,8 +568,8 @@ class RobotController:
                 return "PATHFIND", 0.0, 0.0
 
         if self.current_path_cell >= len(self.planned_path):  # if we have finished the path
-            self.planned_path = None      # wipe old path so A* replans for next
-            self.current_path_cell = 0    # reset index
+            self.planned_path = None  # wipe old path so A* replans for next
+            self.current_path_cell = 0  # reset index
 
             if self.travelling == "recycle_point":
                 self.travelling = "home"  # if we are at the recycle point, change to home to go to after
