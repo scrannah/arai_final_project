@@ -92,8 +92,8 @@ class GridMap:
 
         self.dynamic_occupied_cells = []  # insert obstacles found at runtime
 
-        for ix, iy in self.static_occupied_cells:
-            self.grid[ix][iy] = 1  # extra walls and recycling points set to occupied
+        for ix, iy in self.dynamic_occupied_cells:
+            self.grid[ix][iy] = 1  # obstacles detected
 
     def mark_obstacle(self, ix, iy):
         self.grid[ix][iy] = 1
@@ -492,6 +492,8 @@ class RobotController:
         self.travelling = "recycle_point"
 
         self.metal_recycle_coord = (1.11, 0.89)
+        self.wood_recycle_coord = (1.39, 0.32)
+        self.cardboard_recycle_coord = (1.38, -0.2)
         self.world_reset = (0, 0)
 
         # tune this for threshold
@@ -511,6 +513,7 @@ class RobotController:
             self.grid_map.mark_obstacle(ix, iy)  # mark in grid and dynamic list
             self.planned_path = None  # wipe path
             print(f"Obstacle detected at cell ({ix}, {iy}), replanning")
+        return "PATHFIND", 0.0, 0.0
 
     def handle_cnn_capture(self):
         return "PATHFIND", 0.0, 0.0
@@ -537,6 +540,7 @@ class RobotController:
 
             if self.planned_path is None:  # if a* cant find a path
                 print("No safe path found")
+                clear_dynamic_obstacles(self)
                 return "PATHFIND", 0.0, 0.0
 
         if self.current_path_cell >= len(self.planned_path):  # if we have finished the path
