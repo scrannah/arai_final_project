@@ -114,8 +114,8 @@ class GridMap:
 
     def gps_to_cell(self, x, y):
         # shift x from [-arena_x/2, +arena_x/2] into [0, arena_x]
-        shifted_x = x + self.arena_x / 2  # map on x axis goes from -1.5 to +1.5, we are centred around 0
-        shifted_y = y + self.arena_y / 2  # -1 to + 1 on y axis
+        shifted_x = x + self.arena_x / 2  # map on x-axis goes from -1.5 to +1.5, we are centred around 0
+        shifted_y = y + self.arena_y / 2  # -1 to + 1 on y-axis
 
         # convert from  meters to cells
         ix = int(shifted_x / self.cell_x)
@@ -227,7 +227,7 @@ class Navigator:
         vector_x = target_world_x - x  # how much we need to vector to target
         vector_y = target_world_y - y  # target subtract current location
 
-        distance_to_target = math.sqrt(vector_x ** 2 + vector_y ** 2)  # euclidean distance
+        distance_to_target = math.sqrt(vector_x ** 2 + vector_y ** 2)  # Euclidean distance
 
         if distance_to_target < self.waypoint_reached_distance:
             return True, 0.0, 0.0  # at target
@@ -352,7 +352,7 @@ class VisionSystem:
         bounding_rects = []
         for cnt in valid_contours:
             x, y, w, h = cv2.boundingRect(cnt)
-            # if any box includes an edge skip it move to next contour
+            # if any box includes an edge skip it moves to next contour
             if x == 0 or y == 0:  # this might cause getting 'lost' when object bounding box gets closer and y and x become on edge
                 continue
             bounding_rects.append((x, y, w, h))
@@ -516,17 +516,18 @@ class RobotController:
         return "PATHFIND", 0.0, 0.0
 
     def handle_cnn_capture(self):
-        return "PATHFIND", 0.0, 0.0
+        return "PATHFIND", 0.0, 0.0 # return cnn classifier aswell
 
     def handle_pathfind(self):
-
-        self.check_for_obstacles()
+        if self.planned_path is not None:
+            self.check_for_obstacles() # only check if we are pathfinding
         goal_cell = None # incase never assigned
         if self.travelling == "home":
             goal_world_x, goal_world_y = self.world_reset
             goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
 
         elif self.travelling == "recycle_point":
+            # if cnn returns 1 2 3
             goal_world_x, goal_world_y = self.metal_recycle_coord
             goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
 
@@ -536,11 +537,11 @@ class RobotController:
         if self.planned_path is None:
             self.planned_path = self.planner.astar(robot_cell, goal_cell)
             self.current_path_cell = 0
-            print("replanning from", robot_cell, "to", goal_cell)
+            print("Replanning from", robot_cell, "to", goal_cell)
 
             if self.planned_path is None:  # if a* cant find a path
                 print("No safe path found")
-                clear_dynamic_obstacles(self)
+                self.grid_map.clear_dynamic_obstacles()
                 return "PATHFIND", 0.0, 0.0
 
         if self.current_path_cell >= len(self.planned_path):  # if we have finished the path
