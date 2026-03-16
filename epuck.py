@@ -84,12 +84,19 @@ class GridMap:
                 if ix == 0 or ix == self.nx - 1 or iy == 0 or iy == self.ny - 1:
                     self.grid[ix][iy] = 1  # on the edge of the map, this is blocked space
 
+        self.forbidden_search_cells = [(ix, iy)
+                                       for ix in range(39, 60)
+                                       for iy in range(0, 40)]
+
         self.static_occupied_cells = (
-                [(41, iy) for iy in range(9, 40)]
-                + [(40, iy) for iy in range(9, 40)]
-                + [(42, iy) for iy in range(9, 40)]
-                + [(41, 8), (40, 8), (42, 8)]
+            [(ix, iy) for ix in range(39, 45) for iy in range(11, 40)]  # long wall + buffer
         )
+        # [(ix, iy) for ix in range(55, 60) for iy in range(28, 33)]   # wood dropoff
+        # +
+        # [(ix, iy) for ix in range(55, 60) for iy in range(21, 26)]   # cardboard dropoff
+        # +
+        # [(ix, iy) for ix in range(50, 55) for iy in range(35, 40)]   # metal dropoff
+        # )
 
         self.dynamic_occupied_cells = []  # insert obstacles found at runtime
 
@@ -342,7 +349,6 @@ class VisionSystem:
         )
 
     def sense_objects(self):
-        # SENSING
 
         frame = self.devices.get_opencv_image()
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -516,6 +522,34 @@ class RobotController:
         self.obstacle_threshold = 75
         self.path_start_cell = None
 
+    def handle_illegal_zone_search(self):
+        x, y, robot_yaw = self.devices.get_pose()
+        robot_cell = self.grid_map.gps_to_cell(x, y)
+
+        if robot_cell in self.grid_map.forbidden_search_cells:
+            print("In forbidden search zone, returning home")
+            self.travelling = "home"
+            self.planned_path = None
+            self.current_path_cell = 0
+            self.vision.reset_all_tracking()  # reset any stale trackings
+            return "PATHFIND", 0.0, 0.0
+
+        return self.vision.handle_searching()  # if we are in the right area, allow search
+
+    def handle_illegal_zone_approach(self):
+        x, y, robot_yaw = self.devices.get_pose()
+        robot_cell = self.grid_map.gps_to_cell(x, y)
+
+        if robot_cell in self.grid_map.forbidden_search_cells:
+            print("In forbidden search zone, returning home")
+            self.travelling = "home"
+            self.planned_path = None
+            self.current_path_cell = 0
+            self.vision.reset_all_tracking()  # reset any stale trackings
+            return "PATHFIND", 0.0, 0.0
+
+        return self.vision.handle_approaching()  # if we are in the right area, allow approach
+
     def check_for_obstacles(self):
         front_distance = self.devices.get_front_approx()
 
@@ -528,7 +562,7 @@ class RobotController:
 
             ix, iy = self.grid_map.gps_to_cell(obstacle_x, obstacle_y)
 
-            self.grid_map.mark_obstacle_with_buffer(self, ix, iy, buffer_cells=2)  # mark in grid and dynamic list
+            self.grid_map.mark_obstacle_with_buffer(ix, iy, buffer_cells=2)  # mark in grid and dynamic list
             self.planned_path = None  # wipe path
 
             print(f"Obstacle detected at cell ({ix}, {iy}), replanning")
@@ -597,16 +631,16 @@ class RobotController:
     def run(self):
         # MAIN LOOP
         while self.devices.step() != -1:
-            leftSpeed = 0.0  # resets movement per timestep
+            leftSpeed = 0.0  # resets movement per timestep, no stale speeds here
             rightSpeed = 0.0
 
             # STATE: SEARCHING
             if self.state == "SEARCHING":
-                self.state, leftSpeed, rightSpeed = self.vision.handle_searching()
+                self.state, leftSpeed, rightSpeed = self.handle_illegal_zone_search()
 
             # STATE: APPROACHING
             elif self.state == "APPROACHING":
-                self.state, leftSpeed, rightSpeed = self.vision.handle_approaching()
+                self.state, leftSpeed, rightSpeed = self.handle_illegal_zone_approach()
 
             # STATE: CNN CAPTURE
             elif self.state == "CNN_CAPTURE":
