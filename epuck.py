@@ -125,6 +125,8 @@ class GridMap:
             self.grid[ix][iy] = 0
         self.dynamic_occupied_cells = []  # clear if no path can be found
 
+        return "PATHFIND", 0.0, 0.0
+
     def clamp(self, v, low, high):
         # keep cells between min max cells. some objects may leak into occupied external cells
         if v < low:
@@ -142,7 +144,8 @@ class GridMap:
         ix = int(shifted_x / self.cell_x)
         iy = int(shifted_y / self.cell_y)
 
-        # clamp indices so we never go outside the indexing, lists cannot be -1 and 60 doesnt exist in lists as they count from 0
+        # clamp indices, so we never go outside the indexing
+        # lists cannot be -1 and 60 doesnt exist in lists as they count from 0
         ix = self.clamp(ix, 0, self.nx - 1)  # 60 rows in list space is 0-59
         iy = self.clamp(iy, 0, self.ny - 1)
 
@@ -162,9 +165,9 @@ class GridMap:
 
         return target_world_x, target_world_y
 
-    def manhattan(self, ix, iy):  # for 4 distance movement
-        # a and b are (ix, iy)
-        return abs(ix[0] - iy[0]) + abs(ix[1] - iy[1])  # abs means its positive regardless of sign
+    def manhattan(self, a, b):  # basic cell distance
+        # a and b
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])  # abs means its positive regardless of sign
 
     def get_neighbours(self, cell):
         cx, cy = cell  # unpacking tuple
@@ -219,9 +222,9 @@ class AStarPlanner:
                 dx = neighbour_cell[0] - current_cell[0]  # check if we moved diagonally
                 dy = neighbour_cell[1] - current_cell[1]  # if these are both not 0, we did
                 step_cost = math.sqrt(2) if (
-                            dx != 0 and dy != 0) else 1.0  # if we moved diagonally step cost is square 2
-                tentative_g = g_score[
-                                  current_cell] + step_cost  # tentative g for neighbour is the current cell g score + movement cost
+                        dx != 0 and dy != 0) else 1.0  # if we moved diagonally step cost is square 2
+                tentative_g = g_score[current_cell] + step_cost
+                # tentative g for neighbour is the current cell g score + movement cost
 
                 if tentative_g < g_score.get(
                         neighbour_cell,
@@ -299,7 +302,7 @@ class VisionSystem:
         )  # how many pixels should we have in frame before we stop
 
         # stop centering jitter
-        self.uncentre_confirm_frames = 5  # must be uncentered this many frames before we turn
+        self.uncentre_confirm_frames = 5  # must be uncentred this many frames before we turn
         self.centre_confirm_frames = 2  # must be centred this many frames before we go forward
 
         self.lost = 0
@@ -375,7 +378,8 @@ class VisionSystem:
         for cnt in valid_contours:
             x, y, w, h = cv2.boundingRect(cnt)
             # if any box includes an edge skip it moves to next contour
-            if x == 0 or y == 0:  # this might cause getting 'lost' when object bounding box gets closer and y and x become on edge
+            if x == 0 or y == 0:
+                # this might cause getting 'lost' when object bounding box gets closer and y and x become on edge
                 continue
             bounding_rects.append((x, y, w, h))
             cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
@@ -424,7 +428,7 @@ class VisionSystem:
             self.reset_tracking_counts()
 
             if self.lost > 10:
-                state = "SEARCHING"  # youre mega lost give up and search again
+                state = "SEARCHING"  # you're mega lost give up and search again
                 self.locked_rect = None  # give up on that rect
                 leftSpeed = 0.0 * self.max_speed
                 rightSpeed = 0.0 * self.max_speed
@@ -505,12 +509,14 @@ class RobotController:
         self.navigator = Navigator(self.devices, self.max_speed)
         self.vision = VisionSystem(self.devices, self.max_speed)
 
-        # STATE MACHINE, YOU NEED THIS THROUGH THE WHOLE PIPELINE
+        # Initialise as searching
         self.state = "SEARCHING"
 
-        # A* PATHFINDING MEMORY
-        self.planned_path = None  # path needs to be remembered outside timestep
+        # pathfinding memory
+        self.planned_path = None  # Path needs to be remembered outside timestep
         self.current_path_cell = 0
+
+        # Initialise to travel to recycle point until otherwise
         self.travelling = "recycle_point"
 
         self.metal_recycle_coord = (1.11, 0.89)
@@ -518,7 +524,7 @@ class RobotController:
         self.cardboard_recycle_coord = (1.38, -0.2)
         self.world_reset = (0, 0)
 
-        # tune this for threshold
+        # Tune this for threshold
         self.obstacle_threshold = 75
         self.path_start_cell = None
 
@@ -531,7 +537,7 @@ class RobotController:
             self.travelling = "home"
             self.planned_path = None
             self.current_path_cell = 0
-            self.vision.reset_all_tracking()  # reset any stale trackings
+            self.vision.reset_all_tracking()  # reset any stale tracking
             return "PATHFIND", 0.0, 0.0
 
         return self.vision.handle_searching()  # if we are in the right area, allow search
@@ -545,7 +551,7 @@ class RobotController:
             self.travelling = "home"
             self.planned_path = None
             self.current_path_cell = 0
-            self.vision.reset_all_tracking()  # reset any stale trackings
+            self.vision.reset_all_tracking()  # reset any stale tracking
             return "PATHFIND", 0.0, 0.0
 
         return self.vision.handle_approaching()  # if we are in the right area, allow approach
@@ -569,16 +575,22 @@ class RobotController:
         return "PATHFIND", 0.0, 0.0
 
     def handle_cnn_capture(self):
-        return "PATHFIND", 0.0, 0.0  # return cnn classifier aswell
+        #get fram
+        #run classifier
+        #return output
+        #DECLARE OUTPUT AND COMPARE WITH SUPERVISOR
+        classification = 1
 
-    def handle_pathfind(self):
+        return "PATHFIND", 0.0, 0.0, classification  # return cnn classifier aswell 1 2 3
+
+    def handle_pathfind(self, classification):
 
         x, y, robot_yaw = self.devices.get_pose()
         robot_cell = self.grid_map.gps_to_cell(x, y)
 
         if self.planned_path is not None:
             dist = self.grid_map.manhattan(robot_cell, self.path_start_cell)
-            if dist > 3:  # check if we have moved, dont set the obstacle we have just looked at
+            if dist > 3:  # check if we have moved, don't set the obstacle we have just looked at as obstacle
                 self.check_for_obstacles()  # only check if we are pathfinding
         goal_cell = None  # incase never assigned
         if self.travelling == "home":
@@ -644,11 +656,11 @@ class RobotController:
 
             # STATE: CNN CAPTURE
             elif self.state == "CNN_CAPTURE":
-                self.state, leftSpeed, rightSpeed = self.handle_cnn_capture()
+                self.state, leftSpeed, rightSpeed, classification = self.handle_cnn_capture()
 
             # STATE: PATHFIND
             elif self.state == "PATHFIND":
-                self.state, leftSpeed, rightSpeed = self.handle_pathfind()
+                self.state, leftSpeed, rightSpeed = self.handle_pathfind(classification)
 
             self.devices.set_wheel_speeds(leftSpeed, rightSpeed)
 
