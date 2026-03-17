@@ -103,7 +103,7 @@ class GridMap:
         # [(ix, iy) for ix in range(55, 60) for iy in range(21, 26)]   # cardboard dropoff
         # +
         # [(ix, iy) for ix in range(50, 55) for iy in range(35, 40)]   # metal dropoff
-        # )
+        # ) dropoffs are not an obstacle just a goal
 
         self.dynamic_occupied_cells = []  # insert obstacles found at runtime
 
@@ -521,6 +521,7 @@ class SmartTransform:  # smart transform to only crop images that need it
 
 class RubbishClassifier:
     def __init__(self):
+
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.resnet18 = resnet18(weights=None)
         self.resnet18.load_state_dict(torch.load("path here"))
@@ -579,6 +580,8 @@ class RobotController:
             2: self.wood_recycle_coord
         } # dictionary to unpack instead of if statements
         self.world_reset = (0, 0)
+
+        self.classification = None  # in case we pathfind before cnn
 
         # Tune this for threshold
         self.obstacle_threshold = 75
@@ -656,8 +659,12 @@ class RobotController:
             goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
 
         elif self.travelling == "recycle_point":
-            goal_world_x, goal_world_y = self.recycle_coords[classification]  # look for the right coord
-            goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
+            if self.classification is None:  # if we haven't classified yet, stops early classification assumption
+                goal_world_x, goal_world_y = self.world_reset
+                goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
+            else:
+                goal_world_x, goal_world_y = self.recycle_coords[classification]  # look for the right coord
+                goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
 
 
 
@@ -678,6 +685,7 @@ class RobotController:
 
             if self.travelling == "recycle_point":
                 self.travelling = "home"  # if we are at the recycle point, change to home to go to after
+                self.classification = None # reset to prevent stale classification
                 return "PATHFIND", 0.0, 0.0
 
             elif self.travelling == "home":  # if we are at home (0,0)
