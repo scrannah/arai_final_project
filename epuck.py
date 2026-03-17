@@ -573,8 +573,8 @@ class RobotController:
         self.travelling = "recycle_point"
 
         self.metal_recycle_coord = (1.11, 0.89)
-        self.wood_recycle_coord = (1.39, 0.32)
-        self.cardboard_recycle_coord = (1.38, -0.2)
+        self.wood_recycle_coord = (1.39, 0.52)
+        self.cardboard_recycle_coord = (1.38, 0.15)
         self.recycle_coords = {
             0: self.cardboard_recycle_coord,
             1: self.metal_recycle_coord,
