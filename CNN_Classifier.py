@@ -30,26 +30,27 @@ class SmartTransform:  # smart transform to only crop images that need it
 
 # Check if GPU is available
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"Using device: {device}")
+
 
 # Class names for dataset
 class_names = ['metal', 'wood', 'cardboard']
 
 
 class RubbishClassifier:
-
     def __init__(self):
-        self.resnet18 = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
-        self.in_features = resnet18.fc.in_features
-        resnet18.fc = nn.Linear(in_features, 3)  # change the last layer (fc) into a three classifier
+        self.resnet18 = resnet18(weights=None)
+        in_features = self.resnet18.fc.in_features
+        self.resnet18.fc = nn.Linear(in_features, 3)  # change the last layer (fc) into a three classifier
 
         # Instantiate the model and move it to the device
         self.model = resnet18.to(device)
-
-
     def run_model(self, resnet18, frame):
-        resnet18.eval
+
+        transformed_frame = frame(transform)
+        self.resnet18.eval()
         with torch.no_grad():
-            prediction = self.resnet18(frame)
+            prediction = self.resnet18(transformed_frame)
 
         return prediction
+
+
