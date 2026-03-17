@@ -521,7 +521,6 @@ class SmartTransform:  # smart transform to only crop images that need it
 
 class RubbishClassifier:
     def __init__(self):
-
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.resnet18 = resnet18(weights=None)
         self.resnet18.load_state_dict(torch.load("path here"))
@@ -553,6 +552,7 @@ class RubbishClassifier:
 class RobotController:
     def __init__(self):
         self.devices = RobotDevices()
+        self.classifier = RubbishClassifier()
 
         self.max_speed = 6.28
 
@@ -578,7 +578,7 @@ class RobotController:
             0: self.cardboard_recycle_coord,
             1: self.metal_recycle_coord,
             2: self.wood_recycle_coord
-        } # dictionary to unpack instead of if statements
+        }  # dictionary to unpack instead of if statements
         self.world_reset = (0, 0)
 
         self.classification = None  # in case we pathfind before cnn
@@ -634,15 +634,14 @@ class RobotController:
         return "PATHFIND", 0.0, 0.0
 
     def handle_cnn_capture(self):
-        frame = self.camera.getImage()
-        frame = np.frombuffer(frame, dtype=np.uint8).reshape((self.height, self.width, 4))
+        frame = self.devices.camera.getImage()
+        frame = np.frombuffer(frame, dtype=np.uint8).reshape((self.devices.height, self.devices.width, 4))
         frame = frame[:, :, :3]  # remove alpha channel
-        frame = Image.fromarray(frame) # convert to PIL
-        classification = self.run_model(frame)
+        frame = Image.fromarray(frame)  # convert to PIL
+        self.classification = self.classifier.run_model(frame)
         # DECLARE OUTPUT AND COMPARE WITH SUPERVISOR
 
-
-        return "PATHFIND", 0.0, 0.0, classification  # return cnn classifier aswell 1 2 3
+        return "PATHFIND", 0.0, 0.0  # return cnn classifier aswell 1 2 3
 
     def handle_pathfind(self, classification):
 
@@ -663,10 +662,8 @@ class RobotController:
                 goal_world_x, goal_world_y = self.world_reset
                 goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
             else:
-                goal_world_x, goal_world_y = self.recycle_coords[classification]  # look for the right coord
+                goal_world_x, goal_world_y = self.recycle_coords[self.classification]  # look for the right coord
                 goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
-
-
 
         if self.planned_path is None:
             self.path_start_cell = robot_cell
@@ -685,7 +682,7 @@ class RobotController:
 
             if self.travelling == "recycle_point":
                 self.travelling = "home"  # if we are at the recycle point, change to home to go to after
-                self.classification = None # reset to prevent stale classification
+                self.classification = None  # reset to prevent stale classification
                 return "PATHFIND", 0.0, 0.0
 
             elif self.travelling == "home":  # if we are at home (0,0)
@@ -723,11 +720,11 @@ class RobotController:
 
             # STATE: CNN CAPTURE
             elif self.state == "CNN_CAPTURE":
-                self.state, leftSpeed, rightSpeed, classification = self.handle_cnn_capture()
+                self.state, leftSpeed, rightSpeed = self.handle_cnn_capture()
 
             # STATE: PATHFIND
             elif self.state == "PATHFIND":
-                self.state, leftSpeed, rightSpeed = self.handle_pathfind(classification)
+                self.state, leftSpeed, rightSpeed = self.handle_pathfind(self.classification)
 
             self.devices.set_wheel_speeds(leftSpeed, rightSpeed)
 
