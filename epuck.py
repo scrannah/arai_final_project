@@ -490,7 +490,7 @@ class VisionSystem:
                 leftSpeed = 0.0
                 rightSpeed = 0.0
                 print("Close enough, let's get a picture")
-                state = "PATHFIND"
+                state = "CNN_CAPTURE"
                 return state, leftSpeed, rightSpeed
 
             else:
@@ -543,7 +543,8 @@ class RubbishClassifier:
         transformed_frame = transformed_frame.unsqueeze(0)  # add batch dim on even though im only passing 1 frame
         transformed_frame = transformed_frame.to(self.device)
         with torch.no_grad():
-            classification = self.resnet18(transformed_frame)
+            output = self.resnet18(transformed_frame)
+            classification = torch.argmax(output, dim=1).item()  # get a clean 0 1 2 for outputs
 
         return classification
 
@@ -572,6 +573,11 @@ class RobotController:
         self.metal_recycle_coord = (1.11, 0.89)
         self.wood_recycle_coord = (1.39, 0.32)
         self.cardboard_recycle_coord = (1.38, -0.2)
+        self.recycle_coords = {
+            0: self.cardboard_recycle_coord,
+            1: self.metal_recycle_coord,
+            2: self.wood_recycle_coord
+        } # dictionary to unpack instead of if statements
         self.world_reset = (0, 0)
 
         # Tune this for threshold
@@ -628,9 +634,8 @@ class RobotController:
         frame = self.camera.getImage()
         frame = np.frombuffer(frame, dtype=np.uint8).reshape((self.height, self.width, 4))
         frame = frame[:, :, :3]  # remove alpha channel
-        frame = Image.fromarray(frame)
+        frame = Image.fromarray(frame) # convert to PIL
         classification = self.run_model(frame)
-        print(classification)
         # DECLARE OUTPUT AND COMPARE WITH SUPERVISOR
 
 
@@ -651,9 +656,10 @@ class RobotController:
             goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
 
         elif self.travelling == "recycle_point":
-            # if cnn returns 1 2 3
-            goal_world_x, goal_world_y = self.metal_recycle_coord
+            goal_world_x, goal_world_y = self.recycle_coords[classification]  # look for the right coord
             goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
+
+
 
         if self.planned_path is None:
             self.path_start_cell = robot_cell

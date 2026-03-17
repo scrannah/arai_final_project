@@ -42,6 +42,7 @@ class RubbishClassifier:
         transformed_frame = transformed_frame.unsqueeze(0)  # add batch dim on even though im only passing 1 frame
         transformed_frame = transformed_frame.to(self.device)
         with torch.no_grad():
-            classification = self.resnet18(transformed_frame)
+            output = self.resnet18(transformed_frame)
+            classification = torch.argmax(output, dim=1).item()
 
         return classification
