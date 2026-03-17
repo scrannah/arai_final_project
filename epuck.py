@@ -545,6 +545,7 @@ class RubbishClassifier:
         with torch.no_grad():
             output = self.resnet18(transformed_frame)
             classification = torch.argmax(output, dim=1).item()  # get a clean 0 1 2 for outputs
+            print(classification)
 
         return classification
 
@@ -641,7 +642,7 @@ class RobotController:
         self.classification = self.classifier.run_model(frame)
         # DECLARE OUTPUT AND COMPARE WITH SUPERVISOR
 
-        return "PATHFIND", 0.0, 0.0  # return cnn classifier aswell 1 2 3
+        return "PATHFIND", 0.0, 0.0  # don't need to return self.classifier, methods can access it within class
 
     def handle_pathfind(self, classification):
 
