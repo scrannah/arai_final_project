@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 from torchvision import datasets, transforms
 from torchvision.models import resnet18
+from torchvision.models import ResNet18_Weights
 from PIL import Image
 
 
@@ -523,9 +524,9 @@ class RubbishClassifier:
     def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.resnet18 = resnet18(weights=None)
-        self.resnet18.load_state_dict(torch.load("path here"))
         in_features = self.resnet18.fc.in_features
         self.resnet18.fc = nn.Linear(in_features, 3)  # change the last layer (fc) into a three classifier
+        self.resnet18.load_state_dict(torch.load("C:/Users/c1018605/Downloads/firstmodel.pth"))  # load weights last
 
         # Instantiate the model and move it to the device
         self.resnet18 = self.resnet18.to(self.device)
@@ -651,8 +652,8 @@ class RobotController:
 
         if self.planned_path is not None:
             dist = self.grid_map.manhattan(robot_cell, self.path_start_cell)
-            if dist > 3:  # check if we have moved, don't set the obstacle we have just looked at as obstacle
-                self.check_for_obstacles()  # only check if we are pathfinding
+            # if dist > 3:  # check if we have moved, don't set the obstacle we have just looked at as obstacle
+                # self.check_for_obstacles()  # only check if we are pathfinding
         goal_cell = None  # incase never assigned
         if self.travelling == "home":
             goal_world_x, goal_world_y = self.world_reset
