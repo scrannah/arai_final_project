@@ -9,6 +9,7 @@ class RubbishClassifier:
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.resnet18 = resnet18(weights=None)
+        self.resnet18.load_state_dict(torch.load("path here"))
         in_features = self.resnet18.fc.in_features
         self.resnet18.fc = nn.Linear(in_features, 3)  # change the last layer (fc) into a three classifier
 
@@ -25,7 +26,7 @@ class RubbishClassifier:
     def run_model(self, frame):
 
         transformed_frame = self.transform(frame)
-        transformed_frame = transformed_frame.unsqueeze(0)
+        transformed_frame = transformed_frame.unsqueeze(0)  # add batch dim on even though im only passing 1 frame
         transformed_frame = transformed_frame.to(self.device)
         self.resnet18.eval()
         with torch.no_grad():
