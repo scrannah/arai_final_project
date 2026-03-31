@@ -5,9 +5,8 @@ import heapq
 import math
 import torch
 import torch.nn as nn
-from torchvision import datasets, transforms
+from torchvision import transforms
 from torchvision.models import resnet18
-from torchvision.models import ResNet18_Weights
 from PIL import Image
 
 
@@ -99,12 +98,6 @@ class GridMap:
         self.static_occupied_cells = (
             [(ix, iy) for ix in range(39, 45) for iy in range(11, 40)]  # long wall + buffer
         )
-        # [(ix, iy) for ix in range(55, 60) for iy in range(28, 33)]   # wood dropoff
-        # +
-        # [(ix, iy) for ix in range(55, 60) for iy in range(21, 26)]   # cardboard dropoff
-        # +
-        # [(ix, iy) for ix in range(50, 55) for iy in range(35, 40)]   # metal dropoff
-        # ) dropoffs are not an obstacle just a goal
 
         self.dynamic_occupied_cells = []  # insert obstacles found at runtime
 
@@ -536,7 +529,6 @@ class RubbishClassifier:
 
         self.transform = transforms.Compose([
             SmartTransform(),
-            transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])])
@@ -643,19 +635,20 @@ class RobotController:
         frame = self.devices.camera.getImage()
         frame = np.frombuffer(frame, dtype=np.uint8).reshape((self.devices.height, self.devices.width, 4))
         frame = frame[:, :, :3]  # remove alpha channel
-        frame = frame[:, :, ::-1]  # flip BGR to RGB
+        frame = frame[:, :, ::-1]  # flip bgr to rbg
         frame = Image.fromarray(frame)  # convert to PIL
         if self.vision.locked_rect is not None:
             x, y, w, h = self.vision.locked_rect
             frame_crop = frame.crop((x, y, x + w, y + h))  # crop to get just the object
         # frame_crop.save("C:\\Users\\hanna\\Desktop\\debug_crop.jpg")
+        # do something about if locked rect is somehow none
         self.classification = self.classifier.run_model(frame_crop)
 
         # DECLARE OUTPUT AND COMPARE WITH SUPERVISOR
 
-        return "PATHFIND", 0.0, 0.0  # don't need to return self.classifier, methods can access it within class
+        return "PATHFIND", 0.0, 0.0
 
-    def handle_pathfind(self, classification):
+    def handle_pathfind(self):
 
         x, y, robot_yaw = self.devices.get_pose()
         robot_cell = self.grid_map.gps_to_cell(x, y)
@@ -736,7 +729,7 @@ class RobotController:
 
             # STATE: PATHFIND
             elif self.state == "PATHFIND":
-                self.state, leftSpeed, rightSpeed = self.handle_pathfind(self.classification)
+                self.state, leftSpeed, rightSpeed = self.handle_pathfind()
 
             self.devices.set_wheel_speeds(leftSpeed, rightSpeed)
 
