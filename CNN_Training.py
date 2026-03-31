@@ -20,7 +20,7 @@ class_names = ['metal', 'wood', 'cardboard']
 class SmartTransform: # smart transform to only crop images that need it
     def __init__(self):
         self.center_crop = transforms.CenterCrop(224)
-        self.resize = transforms.Resize((64, 64))
+        self.resize = transforms.Resize((224, 224))
     def __call__(self, img):
         w, h = img.size
         # Only crop if image is big enough
@@ -135,7 +135,7 @@ def build_dataloaders(dataset_path, stage, batch_size=16):
     return train_loader, val_loader, test_loader
 
 original_model = resnet18(weights=ResNet18_Weights.IMAGENET1K_V1)
-print(original_model)
+# print(original_model)
 in_features = original_model.fc.in_features
 original_model.fc = nn.Linear(in_features, 3) #change th last layer (fc) into a three classifier
 
@@ -160,9 +160,9 @@ criterion = nn.CrossEntropyLoss()
 optimiser = optim.Adam(model.parameters(), lr=0.1e-4)
 
 train_loader, val_loader, test_loader = build_dataloaders(
-    "C:\\Users\\hanna\\Downloads\\dataset_stage1_real", # edit for stage dataset
+    "C:\\Users\\hanna\\Downloads\\dataset_stage1_real2", # edit for stage dataset
     stage="stage1",
-    batch_size=4)
+    batch_size=8)
 
 # Training loop
 
@@ -250,4 +250,15 @@ fig, ax = plt.subplots(figsize=(8, 6))
 ConfusionMatrixDisplay.from_predictions(all_labels, all_predictions, cmap=plt.cm.magma
                                       , display_labels=class_names, ax=ax)
 ax.set_title("Confusion Matrix")
+plt.show()
+
+test_loss, test_acc, test_labels, test_preds = validate(model, test_loader, criterion, device)
+
+print(f"Test Loss: {test_loss:.4f} Test Accuracy: {test_acc:.4f}")
+print(classification_report(test_labels, test_preds, target_names=class_names))
+
+fig, ax = plt.subplots(figsize=(8, 6))
+ConfusionMatrixDisplay.from_predictions(test_labels, test_preds, cmap=plt.cm.magma,
+                                        display_labels=class_names, ax=ax)
+ax.set_title("Test Confusion Matrix")
 plt.show()

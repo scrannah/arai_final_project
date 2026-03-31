@@ -509,7 +509,7 @@ class VisionSystem:
 class SmartTransform:  # smart transform to only crop images that need it
     def __init__(self):
         self.center_crop = transforms.CenterCrop(224)
-        self.resize = transforms.Resize((64, 64))
+        self.resize = transforms.Resize((224, 224))
 
     def __call__(self, frame):
         w, h = frame.size
@@ -526,7 +526,7 @@ class RubbishClassifier:
         self.resnet18 = resnet18(weights=None)
         in_features = self.resnet18.fc.in_features
         self.resnet18.fc = nn.Linear(in_features, 3)  # change the last layer (fc) into a three classifier
-        self.resnet18.load_state_dict(torch.load("C:/Users/c1018605/Downloads/firstmodel.pth"))  # load weights last
+        # self.resnet18.load_state_dict(torch.load("C:/Users/c1018605/Downloads/firstmodel.pth"))  # load weights last
 
         # Instantiate the model and move it to the device
         self.resnet18 = self.resnet18.to(self.device)
