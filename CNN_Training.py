@@ -2,11 +2,9 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, Dataset
-from torchvision import datasets, transforms
+from torchvision import transforms
 from torchvision.models import resnet18
 import matplotlib.pyplot as plt
-import numpy as np
-from PIL import Image
 from torchvision.models import ResNet18_Weights
 from torchvision.datasets import ImageFolder
 from sklearn.model_selection import train_test_split
@@ -162,9 +160,9 @@ criterion = nn.CrossEntropyLoss()
 optimiser = optim.Adam(model.parameters(), lr=0.1e-4)
 
 train_loader, val_loader, test_loader = build_dataloaders(
-    "/content/drive/MyDrive/dataset_stage1_real", # edit for stage dataset
+    "C:\\Users\\hanna\\Downloads\\dataset_stage1_real", # edit for stage dataset
     stage="stage1",
-    batch_size=16)
+    batch_size=4)
 
 # Training loop
 
