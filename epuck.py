@@ -526,7 +526,9 @@ class RubbishClassifier:
         self.resnet18 = resnet18(weights=None)
         in_features = self.resnet18.fc.in_features
         self.resnet18.fc = nn.Linear(in_features, 3)  # change the last layer (fc) into a three classifier
-        # self.resnet18.load_state_dict(torch.load("C:/Users/c1018605/Downloads/firstmodel.pth"))  # load weights last
+        self.resnet18.load_state_dict(
+            torch.load("C:\\Users\\hanna\\PycharmProjects\\arai_final_project\\firstmodel.pth",
+                       weights_only=True))  # load weights last
 
         # Instantiate the model and move it to the device
         self.resnet18 = self.resnet18.to(self.device)
@@ -546,6 +548,8 @@ class RubbishClassifier:
         with torch.no_grad():
             output = self.resnet18(transformed_frame)
             classification = torch.argmax(output, dim=1).item()  # get a clean 0 1 2 for outputs
+            probs = torch.softmax(output, dim=1)
+            print(f"cardboard: {probs[0][0]:.3f}, metal: {probs[0][1]:.3f}, wood: {probs[0][2]:.3f}")
             print(classification)
 
         return classification
@@ -639,8 +643,14 @@ class RobotController:
         frame = self.devices.camera.getImage()
         frame = np.frombuffer(frame, dtype=np.uint8).reshape((self.devices.height, self.devices.width, 4))
         frame = frame[:, :, :3]  # remove alpha channel
+        frame = frame[:, :, ::-1]  # flip BGR to RGB
         frame = Image.fromarray(frame)  # convert to PIL
-        self.classification = self.classifier.run_model(frame)
+        if self.vision.locked_rect is not None:
+            x, y, w, h = self.vision.locked_rect
+            frame_crop = frame.crop((x, y, x + w, y + h))  # crop to get just the object
+        # frame_crop.save("C:\\Users\\hanna\\Desktop\\debug_crop.jpg")
+        self.classification = self.classifier.run_model(frame_crop)
+
         # DECLARE OUTPUT AND COMPARE WITH SUPERVISOR
 
         return "PATHFIND", 0.0, 0.0  # don't need to return self.classifier, methods can access it within class
@@ -653,7 +663,7 @@ class RobotController:
         if self.planned_path is not None:
             dist = self.grid_map.manhattan(robot_cell, self.path_start_cell)
             # if dist > 3:  # check if we have moved, don't set the obstacle we have just looked at as obstacle
-                # self.check_for_obstacles()  # only check if we are pathfinding
+            # self.check_for_obstacles()  # only check if we are pathfinding
         goal_cell = None  # incase never assigned
         if self.travelling == "home":
             goal_world_x, goal_world_y = self.world_reset
