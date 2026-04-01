@@ -576,7 +576,7 @@ class RobotController:
             0: self.cardboard_recycle_coord,
             1: self.metal_recycle_coord,
             2: self.wood_recycle_coord
-        }  # dictionary to unpack instead of if statements
+        }  # dictionary to unpack instead of if statements, keep it clean its getting messy
         self.world_reset = (0, 0)
 
         self.classification = None  # in case we pathfind before cnn
@@ -640,9 +640,10 @@ class RobotController:
         if self.vision.locked_rect is not None:
             x, y, w, h = self.vision.locked_rect
             frame_crop = frame.crop((x, y, x + w, y + h))  # crop to get just the object
-        # frame_crop.save("C:\\Users\\hanna\\Desktop\\debug_crop.jpg")
-        # do something about if locked rect is somehow none
-        self.classification = self.classifier.run_model(frame_crop)
+        # frame_crop.save("C:\\Users\\hanna\\Desktop\\debug_crop.jpg"
+            self.classification = self.classifier.run_model(frame_crop)
+        else:
+            self.classification = self.classifier.run_model(frame) # in case locked rect fails?
 
         # DECLARE OUTPUT AND COMPARE WITH SUPERVISOR
 
