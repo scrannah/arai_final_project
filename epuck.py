@@ -643,7 +643,7 @@ class RobotController:
         # frame_crop.save("C:\\Users\\hanna\\Desktop\\debug_crop.jpg"
             self.classification = self.classifier.run_model(frame_crop)
         else:
-            self.classification = self.classifier.run_model(frame) # in case locked rect fails?
+            self.classification = self.classifier.run_model(frame) # in case locked rect fails
 
         # DECLARE OUTPUT AND COMPARE WITH SUPERVISOR
 
