@@ -499,19 +499,6 @@ class VisionSystem:
             return "APPROACHING", leftSpeed, rightSpeed
 
 
-class SmartTransform:  # smart transform to only crop images that need it
-    def __init__(self):
-        self.center_crop = transforms.CenterCrop(224)
-        self.resize = transforms.Resize((224, 224))
-
-    def __call__(self, frame):
-        w, h = frame.size
-        # Only crop if image is big enough
-        if min(w, h) >= 224:
-            frame = self.center_crop(frame)
-        frame = self.resize(frame)
-        return frame
-
 
 class RubbishClassifier:
     def __init__(self):
@@ -528,7 +515,7 @@ class RubbishClassifier:
         self.resnet18.eval()
 
         self.transform = transforms.Compose([
-            SmartTransform(),
+            transforms.resize((224,224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])])

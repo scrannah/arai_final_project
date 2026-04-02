@@ -17,18 +17,6 @@ print(f"Using device: {device}")
 # Class names for dataset
 class_names = ['metal', 'wood', 'cardboard']
 
-class SmartTransform: # smart transform to only crop images that need it
-    def __init__(self):
-        self.center_crop = transforms.CenterCrop(224)
-        self.resize = transforms.Resize((224, 224))
-    def __call__(self, img):
-        w, h = img.size
-        # Only crop if image is big enough
-        if min(w, h) >= 224:
-            img = self.center_crop(img)
-        img = self.resize(img)
-
-        return img
 
 class DatasetWrapper(Dataset):
     def __init__(self, base_dataset, indices, transform):
@@ -57,7 +45,7 @@ def get_transforms(stage):
                 hue=0.05),
             transforms.RandomRotation(20),
             transforms.RandomPerspective(distortion_scale=0.3, p=0.5),
-            SmartTransform(),
+            transforms.resize((224,224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
@@ -69,20 +57,20 @@ def get_transforms(stage):
                 saturation=0.2,
                 hue=0.05),
             transforms.RandomRotation(20),
-            SmartTransform(),
+            transforms.resize((224,224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
     elif stage == "stage3":
         train_transform = transforms.Compose([
-            SmartTransform(),
+            transforms.resize((224,224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
             ])
 
 
     eval_transform = transforms.Compose([
-            SmartTransform(),
+            transforms.resize((224,224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
             ])
