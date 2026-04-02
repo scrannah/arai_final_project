@@ -45,7 +45,7 @@ def get_transforms(stage):
                 hue=0.05),
             transforms.RandomRotation(20),
             transforms.RandomPerspective(distortion_scale=0.3, p=0.5),
-            transforms.resize((224,224)),
+            transforms.Resize((224,224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
@@ -57,20 +57,20 @@ def get_transforms(stage):
                 saturation=0.2,
                 hue=0.05),
             transforms.RandomRotation(20),
-            transforms.resize((224,224)),
+            transforms.Resize((224,224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
     elif stage == "stage3":
         train_transform = transforms.Compose([
-            transforms.resize((224,224)),
+            transforms.Resize((224,224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
             ])
 
 
     eval_transform = transforms.Compose([
-            transforms.resize((224,224)),
+            transforms.Resize((224,224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
             ])
@@ -148,7 +148,7 @@ criterion = nn.CrossEntropyLoss()
 optimiser = optim.Adam(model.parameters(), lr=0.1e-4)
 
 train_loader, val_loader, test_loader = build_dataloaders(
-    "C:\\Users\\hanna\\Downloads\\dataset_stage1_real2", # edit for stage dataset
+    "C:\\Users\\c1018605\\Downloads\\dataset_stage1_real2", # edit for stage dataset
     stage="stage1",
     batch_size=8)
 
