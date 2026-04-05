@@ -148,7 +148,7 @@ criterion = nn.CrossEntropyLoss()
 optimiser = optim.Adam(model.parameters(), lr=0.1e-4)
 
 train_loader, val_loader, test_loader = build_dataloaders(
-    "C:\\Users\\c1018605\\Downloads\\dataset_stage1_real2", # edit for stage dataset
+    "C:\\Users\\hanna\\Downloads\\dataset_stage1_real2", # edit for stage dataset
     stage="stage1",
     batch_size=8)
 

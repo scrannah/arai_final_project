@@ -25,3 +25,5 @@ def patch_all(input_dir, output_dir, patch_size=224):
                 os.path.join(output_dir, name),
                 patch_size
             )
+
+patch_all("C:\\Users\\hanna\\Downloads\\textures","C:\\Users\\hanna\\Downloads\\patches")
