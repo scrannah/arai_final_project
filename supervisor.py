@@ -1,7 +1,11 @@
 from controller import Supervisor
+import math
 
 supervisor = Supervisor()
 timestep = int(supervisor.getBasicTimeStep())
+
+receiver = supervisor.getDevice("receiver")
+receiver.enable(timestep)
 
 display = supervisor.getDevice("grid")
 W = display.getWidth()
@@ -51,4 +55,28 @@ while supervisor.step(timestep) != -1:
         y = int(b * H / NZ)
         display.drawLine(0, y, W, y)
 
-# MAKE EPUCK SEND SIGNAL TO REMOVE OBJECT USE EUCLIDEAN DISTANCE FROM EPUCK TO NODE TO REMOVE
+    if receiver.getQueueLength() > 0:
+        x, y = receiver.getString().split(",")
+        robot_x, robot_y = float(x), float(y)
+        while receiver.getQueueLength() > 0:
+            receiver.nextPacket()
+        print("coord received")
+
+        objects_group = supervisor.getFromDef("Objects")
+        children_field = objects_group.getField("children")
+        count = children_field.getCount()
+        print("object count:", count)
+
+        closest_node = None  # reset each time
+        closest_dist = float("inf")  # reset each time
+
+        for i in range(count):
+            child = children_field.getMFNode(i)
+            obj_x, obj_y, _ = child.getField("translation").getSFVec3f()
+            dist = math.sqrt((obj_x - robot_x) ** 2 + (obj_y - robot_y) ** 2)
+            if dist < closest_dist:
+                closest_dist = dist
+                closest_node = child
+
+        if closest_node is not None:
+            closest_node.remove()

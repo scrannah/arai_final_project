@@ -1,4 +1,5 @@
 from controller import Robot
+from controller import Emitter
 import numpy as np
 import cv2
 import heapq
@@ -19,6 +20,8 @@ class RobotDevices:
 
         self.gps = self.robot.getDevice("gps")
         self.gps.enable(self.timestep)
+
+        self.emitter = self.robot.getDevice("emitter")
 
         self.inertial_unit = self.robot.getDevice("inertial unit")
         self.inertial_unit.enable(self.timestep)
@@ -146,7 +149,7 @@ class GridMap:
         iy = int(shifted_y / self.cell_y)
 
         # clamp indices, so we never go outside the indexing
-        # lists cannot be -1 and 60 doesnt exist in lists as they count from 0
+        # lists cannot be -1 and 60 doesn't exist in lists as they count from 0
         ix = self.clamp(ix, 0, self.nx - 1)  # 60 rows in list space is 0-59
         iy = self.clamp(iy, 0, self.ny - 1)
 
@@ -499,7 +502,6 @@ class VisionSystem:
             return "APPROACHING", leftSpeed, rightSpeed
 
 
-
 class RubbishClassifier:
     def __init__(self):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -515,7 +517,7 @@ class RubbishClassifier:
         self.resnet18.eval()
 
         self.transform = transforms.Compose([
-            transforms.resize((224,224)),
+            transforms.Resize((224, 224)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                  std=[0.229, 0.224, 0.225])])
@@ -627,12 +629,16 @@ class RobotController:
         if self.vision.locked_rect is not None:
             x, y, w, h = self.vision.locked_rect
             frame_crop = frame.crop((x, y, x + w, y + h))  # crop to get just the object
-        # frame_crop.save("C:\\Users\\hanna\\Desktop\\debug_crop.jpg"
+            # frame_crop.save("C:\\Users\\hanna\\Desktop\\debug_crop.jpg"
             self.classification = self.classifier.run_model(frame_crop)
         else:
-            self.classification = self.classifier.run_model(frame) # in case locked rect fails
+            self.classification = self.classifier.run_model(frame)  # in case locked rect fails
 
-        # DECLARE OUTPUT AND COMPARE WITH SUPERVISOR
+        robot_x, robot_y, _ = self.devices.get_pose()
+        self.devices.emitter.send(f"{robot_x},{robot_y}".encode())
+        print(f"emitted {robot_x},{robot_y}")
+
+        # WAIT UNTIL SUPERVISOR CONFIRMS REMOVAL
 
         return "PATHFIND", 0.0, 0.0
 
