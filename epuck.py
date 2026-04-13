@@ -38,6 +38,9 @@ class RobotDevices:
         self.leftMotor.setVelocity(0.0)
         self.rightMotor.setVelocity(0.0)
 
+        self.sonar = self.robot.getDevice("distance sensor")
+        self.sonar.enable(self.timestep)
+
         self.ps0 = self.robot.getDevice("ps0")
         self.ps1 = self.robot.getDevice("ps1")
         self.ps2 = self.robot.getDevice("ps2")
@@ -114,7 +117,7 @@ class GridMap:
         self.grid[ix][iy] = 1
         self.dynamic_occupied_cells.append((ix, iy))  # track separately from static
 
-    def mark_obstacle_with_buffer(self, ix, iy, buffer_cells=2):
+    def mark_obstacle_with_buffer(self, ix, iy, buffer_cells=0):
         for dx in range(-buffer_cells, buffer_cells + 1):
             for dy in range(-buffer_cells, buffer_cells + 1):
                 nx = ix + dx
@@ -508,9 +511,9 @@ class RubbishClassifier:
         self.resnet18 = resnet18(weights=None)
         in_features = self.resnet18.fc.in_features
         self.resnet18.fc = nn.Linear(in_features, 3)  # change the last layer (fc) into a three classifier
-        self.resnet18.load_state_dict(
-            torch.load("C:\\Users\\hanna\\PycharmProjects\\arai_final_project\\firstmodel.pth",
-                       weights_only=True))  # load weights last
+        # self.resnet18.load_state_dict(
+        # .load("C:\\Users\\hanna\\PycharmProjects\\arai_final_project\\firstmodel.pth",
+        # weights_only=True))  # load weights last
 
         # Instantiate the model and move it to the device
         self.resnet18 = self.resnet18.to(self.device)
@@ -571,7 +574,7 @@ class RobotController:
         self.classification = None  # in case we pathfind before cnn
 
         # Tune this for threshold
-        self.obstacle_threshold = 75
+        self.obstacle_threshold = 200  # sonar returns mm 50 is 5cm in front (1 cell) + the distrnace from robot centre
         self.path_start_cell = None
 
     def handle_illegal_zone_search(self):
@@ -582,6 +585,7 @@ class RobotController:
             print("In forbidden search zone, returning home")
             self.travelling = "home"
             self.planned_path = None
+            print("PATH WIPED: illegal zone search")
             self.current_path_cell = 0
             self.vision.reset_all_tracking()  # reset any stale tracking
             return "PATHFIND", 0.0, 0.0
@@ -596,6 +600,7 @@ class RobotController:
             print("In forbidden search zone, returning home")
             self.travelling = "home"
             self.planned_path = None
+            print("PATH WIPED: illegal zone approach")
             self.current_path_cell = 0
             self.vision.reset_all_tracking()  # reset any stale tracking
             return "PATHFIND", 0.0, 0.0
@@ -603,21 +608,25 @@ class RobotController:
         return self.vision.handle_approaching()  # if we are in the right area, allow approach
 
     def check_for_obstacles(self):
-        front_distance = self.devices.get_front_approx()
+        front_distance = self.devices.sonar.getValue()
+        print(front_distance)
 
-        if front_distance > self.obstacle_threshold:
+        if front_distance <= self.obstacle_threshold:
             x, y, robot_yaw = self.devices.get_pose()
 
             # estimate cell directly in front based on yaw
-            obstacle_x = x + math.cos(robot_yaw) * self.grid_map.cell_x
-            obstacle_y = y + math.sin(robot_yaw) * self.grid_map.cell_y
+            front_distance_mm = front_distance / 1000.0
+            obstacle_x = x + math.cos(robot_yaw) * front_distance_mm
+            obstacle_y = y + math.sin(robot_yaw) * front_distance_mm
 
             ix, iy = self.grid_map.gps_to_cell(obstacle_x, obstacle_y)
 
-            self.grid_map.mark_obstacle_with_buffer(ix, iy, buffer_cells=2)  # mark in grid and dynamic list
-            self.planned_path = None  # wipe path
-
-            print(f"Obstacle detected at cell ({ix}, {iy}), replanning")
+            if self.grid_map.grid[ix][iy] == 0:
+                # new obstacle
+                self.grid_map.mark_obstacle_with_buffer(ix, iy, buffer_cells=1)
+                self.planned_path = None
+                print("PATH WIPED: obstacle detected")
+                print(f"Obstacle detected at cell ({ix}, {iy}), replanning")
         return "PATHFIND", 0.0, 0.0
 
     def handle_cnn_capture(self):
@@ -649,8 +658,8 @@ class RobotController:
 
         if self.planned_path is not None:
             dist = self.grid_map.manhattan(robot_cell, self.path_start_cell)
-            # if dist > 3:  # check if we have moved, don't set the obstacle we have just looked at as obstacle
-            # self.check_for_obstacles()  # only check if we are pathfinding
+            if dist > 3:  # check if we have moved, don't set the obstacle we have just looked at as obstacle
+                self.check_for_obstacles()  # only check if we are pathfinding
         goal_cell = None  # incase never assigned
         if self.travelling == "home":
             goal_world_x, goal_world_y = self.world_reset
@@ -667,6 +676,7 @@ class RobotController:
         if self.planned_path is None:
             self.path_start_cell = robot_cell
             self.planned_path = self.planner.astar(robot_cell, goal_cell)
+            print("New path:", self.planned_path)
             self.current_path_cell = 0
             print("Replanning from", robot_cell, "to", goal_cell)
 
@@ -677,6 +687,7 @@ class RobotController:
 
         if self.current_path_cell >= len(self.planned_path):  # if we have finished the path
             self.planned_path = None  # wipe old path so A* replans for next
+            print("PATH WIPED: path complete")
             self.current_path_cell = 0  # reset index
 
             if self.travelling == "recycle_point":
