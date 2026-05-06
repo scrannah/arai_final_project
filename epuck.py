@@ -413,36 +413,30 @@ class VisionSystem:
     def handle_approaching(self):
         bounding_rects = self.sense_objects()
 
-        # if we have detections this frame, update where the locked target is
-        if len(bounding_rects) > 0 and self.locked_rect is not None:
-            target_rect = self.closest_to_locked(bounding_rects, self.locked_rect)
-            self.locked_rect = target_rect
-            self.lost = 0
-        else:
-            # if we flicker dont pick a new target straightaway
+        if len(bounding_rects) == 0:
             self.lost += 1
-            if self.lost < self.lost_frames:
-                print("lost for", self.lost)
-                # wait to spin
-                leftSpeed = 0.0 * self.max_speed
-                rightSpeed = 0.0 * self.max_speed
-                return "APPROACHING", leftSpeed, rightSpeed
 
-            # lost is greater than lost frame limit
-            # spin until you find again or set as lost and return to searching
+            if self.lost < self.lost_frames:
+                # still flickering, just wait
+                print("lost for", self.lost)
+                return "APPROACHING", 0.0, 0.0
+
+            # lost too long, start spinning to find again
+            self.reset_tracking_counts()
             leftSpeed = 0.15 * self.max_speed
             rightSpeed = -0.15 * self.max_speed
-            self.reset_tracking_counts()
 
             if self.lost > 10:
-                state = "SEARCHING"  # you're mega lost give up and search again
-                self.locked_rect = None  # give up on that rect
-                leftSpeed = 0.0 * self.max_speed
-                rightSpeed = 0.0 * self.max_speed
-                return state, leftSpeed, rightSpeed  # stop spinning to return to search
+                # mega lost, give up and go back to searching
+                self.locked_rect = None
+                return "SEARCHING", 0.0, 0.0
 
             return "APPROACHING", leftSpeed, rightSpeed
 
+        # we have detections, update locked rect to closest target
+        target_rect = self.closest_to_locked(bounding_rects, self.locked_rect)
+        self.locked_rect = target_rect
+        self.lost = 0
         # Use the locked rect for steering
         x, y, w, h = self.locked_rect
         cx = x + w / 2
@@ -477,7 +471,7 @@ class VisionSystem:
 
             return "APPROACHING", leftSpeed, rightSpeed
 
-        elif self.centre_count >= self.centre_confirm_frames:
+        if self.centre_count >= self.centre_confirm_frames:
             # decide if close enough for CNN using bounding box area
             box_area = w * h
 
@@ -493,16 +487,15 @@ class VisionSystem:
                 state = "CNN_CAPTURE"
                 return state, leftSpeed, rightSpeed
 
-            else:
-                # Approach forward
-                leftSpeed = 0.2 * self.max_speed
-                rightSpeed = 0.2 * self.max_speed
-                return "APPROACHING", leftSpeed, rightSpeed
-
-        else:
-            leftSpeed = 0.0  # mitigate stale speed if centre counts not met
-            rightSpeed = 0.0
+            # Approach forward
+            leftSpeed = 0.2 * self.max_speed
+            rightSpeed = 0.2 * self.max_speed
             return "APPROACHING", leftSpeed, rightSpeed
+
+
+        leftSpeed = 0.0  # mitigate stale speed if centre counts not met
+        rightSpeed = 0.0
+        return "APPROACHING", leftSpeed, rightSpeed
 
 
 class RubbishClassifier:
