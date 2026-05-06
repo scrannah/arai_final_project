@@ -10,7 +10,8 @@ from torchvision import transforms
 from torchvision.models import resnet18
 from PIL import Image
 
- # this is the nested fix version
+
+# this is the nested fix version
 
 class RobotDevices:
     def __init__(self):
@@ -285,7 +286,6 @@ class Navigator:
 
             return False, leftSpeed, rightSpeed  # not at target
 
-
         leftSpeed = 0.5 * self.max_speed
         rightSpeed = 0.5 * self.max_speed
         return False, leftSpeed, rightSpeed  # not at target
@@ -298,7 +298,7 @@ class VisionSystem:
 
         # CONSTANTS / FINETUNING
         self.min_area = 100
-        self.max_area = 500000
+        self.max_area = 150000
         self.pixel_tolerance = 50  # how centered to the object
 
         # close enough for CNN using bounding box area
@@ -494,12 +494,10 @@ class VisionSystem:
                 state = "CNN_CAPTURE"
                 return state, leftSpeed, rightSpeed
 
-
             # Approach forward
             leftSpeed = 0.2 * self.max_speed
             rightSpeed = 0.2 * self.max_speed
             return "APPROACHING", leftSpeed, rightSpeed
-
 
         leftSpeed = 0.0  # mitigate stale speed if centre counts not met
         rightSpeed = 0.0
@@ -512,9 +510,8 @@ class RubbishClassifier:
         self.resnet18 = resnet18(weights=None)
         in_features = self.resnet18.fc.in_features
         self.resnet18.fc = nn.Linear(in_features, 3)  # change the last layer (fc) into a three classifier
-        # self.resnet18.load_state_dict(
-        # .load("C:\\Users\\hanna\\PycharmProjects\\arai_final_project\\firstmodel.pth",
-        # weights_only=True))  # load weights last
+        self.resnet18.load_state_dict(.load("C:\\Users\\hanna\\PycharmProjects\\arai_final_project\\firstmodel.pth",
+                                            weights_only=True))  # load weights last
 
         # Instantiate the model and move it to the device
         self.resnet18 = self.resnet18.to(self.device)
@@ -558,6 +555,7 @@ class RobotController:
         # pathfinding memory
         self.planned_path = None  # Path needs to be remembered outside timestep
         self.current_path_cell = 0
+        self.replanning = False
 
         # Initialise to travel to recycle point until otherwise
         self.travelling = "recycle_point"
@@ -626,6 +624,7 @@ class RobotController:
                 # new obstacle
                 self.grid_map.mark_obstacle_with_buffer(ix, iy, buffer_cells=1)
                 self.planned_path = None
+                self.replanning = True
                 print("PATH WIPED: obstacle detected")
                 print(f"Obstacle detected at cell ({ix}, {iy}), replanning")
         return "PATHFIND", 0.0, 0.0
@@ -634,7 +633,7 @@ class RobotController:
         frame = self.devices.camera.getImage()
         frame = np.frombuffer(frame, dtype=np.uint8).reshape((self.devices.height, self.devices.width, 4))
         frame = frame[:, :, :3]  # remove alpha channel
-        frame = frame[:, :, ::-1]  # flip bgr to rbg
+        frame = frame[:, :, ::-1].copy()  # flip bgr to rbg
         frame = Image.fromarray(frame)  # convert to PIL
         if self.vision.locked_rect is not None:
             x, y, w, h = self.vision.locked_rect
@@ -686,6 +685,8 @@ class RobotController:
                 self.grid_map.clear_dynamic_obstacles()
                 return "PATHFIND", 0.0, 0.0
 
+            self.replanning = False  # only clear flag once we have a valid path
+
         if self.current_path_cell >= len(self.planned_path):  # if we have finished the path
             self.planned_path = None  # wipe old path so A* replans for next
             print("PATH WIPED: path complete")
@@ -707,6 +708,9 @@ class RobotController:
         target_cell_y = target_cell[1]
 
         target_world_x, target_world_y = self.grid_map.cell_to_gps(target_cell_x, target_cell_y)
+
+        if self.replanning is True:
+            return "PATHFIND", 0.0, 0.0
 
         reached, leftSpeed, rightSpeed = self.navigator.drive_to_waypoint(target_world_x, target_world_y)
 
