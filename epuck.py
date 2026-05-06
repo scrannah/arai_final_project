@@ -10,6 +10,7 @@ from torchvision import transforms
 from torchvision.models import resnet18
 from PIL import Image
 
+ # this is the nested fix version
 
 class RobotDevices:
     def __init__(self):
@@ -284,10 +285,10 @@ class Navigator:
 
             return False, leftSpeed, rightSpeed  # not at target
 
-        else:  # forward to waypoint
-            leftSpeed = 0.5 * self.max_speed
-            rightSpeed = 0.5 * self.max_speed
-            return False, leftSpeed, rightSpeed  # not at target
+
+        leftSpeed = 0.5 * self.max_speed
+        rightSpeed = 0.5 * self.max_speed
+        return False, leftSpeed, rightSpeed  # not at target
 
 
 class VisionSystem:
@@ -404,39 +405,45 @@ class VisionSystem:
             self.lost = 0
             print("LOCKED APPROACHING")
             return "APPROACHING", 0.0, 0.0
-        else:
-            # Keep scanning
-            leftSpeed = 0.2 * self.max_speed
-            rightSpeed = -0.2 * self.max_speed
-            return "SEARCHING", leftSpeed, rightSpeed
+
+        # Keep scanning
+        leftSpeed = 0.2 * self.max_speed
+        rightSpeed = -0.2 * self.max_speed
+        return "SEARCHING", leftSpeed, rightSpeed
 
     def handle_approaching(self):
         bounding_rects = self.sense_objects()
 
-        if len(bounding_rects) == 0:
+        # if we have detections this frame, update where the locked target is
+        if len(bounding_rects) == 0 or self.locked_rect is None:
+            # if we flicker dont pick a new target straightaway
             self.lost += 1
-
             if self.lost < self.lost_frames:
-                # still flickering, just wait
                 print("lost for", self.lost)
-                return "APPROACHING", 0.0, 0.0
+                # wait to spin
+                leftSpeed = 0.0 * self.max_speed
+                rightSpeed = 0.0 * self.max_speed
+                return "APPROACHING", leftSpeed, rightSpeed
 
-            # lost too long, start spinning to find again
-            self.reset_tracking_counts()
+            # lost is greater than lost frame limit
+            # spin until you find again or set as lost and return to searching
             leftSpeed = 0.15 * self.max_speed
             rightSpeed = -0.15 * self.max_speed
+            self.reset_tracking_counts()
 
             if self.lost > 10:
-                # mega lost, give up and go back to searching
-                self.locked_rect = None
-                return "SEARCHING", 0.0, 0.0
+                state = "SEARCHING"  # you're mega lost give up and search again
+                self.locked_rect = None  # give up on that rect
+                leftSpeed = 0.0 * self.max_speed
+                rightSpeed = 0.0 * self.max_speed
+                return state, leftSpeed, rightSpeed  # stop spinning to return to search
 
             return "APPROACHING", leftSpeed, rightSpeed
 
-        # we have detections, update locked rect to closest target
         target_rect = self.closest_to_locked(bounding_rects, self.locked_rect)
         self.locked_rect = target_rect
         self.lost = 0
+
         # Use the locked rect for steering
         x, y, w, h = self.locked_rect
         cx = x + w / 2
@@ -486,6 +493,7 @@ class VisionSystem:
                 print("Close enough, let's get a picture")
                 state = "CNN_CAPTURE"
                 return state, leftSpeed, rightSpeed
+
 
             # Approach forward
             leftSpeed = 0.2 * self.max_speed
