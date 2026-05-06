@@ -510,8 +510,7 @@ class RubbishClassifier:
         self.resnet18 = resnet18(weights=None)
         in_features = self.resnet18.fc.in_features
         self.resnet18.fc = nn.Linear(in_features, 3)  # change the last layer (fc) into a three classifier
-        self.resnet18.load_state_dict(.load("C:\\Users\\hanna\\PycharmProjects\\arai_final_project\\firstmodel.pth",
-                                            weights_only=True))  # load weights last
+        self.resnet18.load_state_dict(torch.load("C:\\Users\\hanna\\PycharmProjects\\arai_final_project\\firstmodel.pth", weights_only=True))  # load weights last
 
         # Instantiate the model and move it to the device
         self.resnet18 = self.resnet18.to(self.device)
