@@ -115,11 +115,32 @@ class GridMap:
         for ix, iy in self.dynamic_occupied_cells:
             self.grid[ix][iy] = 1  # obstacles detected
 
+    def visualise_grid(self, robot_cell=None):
+        # create a black image, one pixel per cell
+        img = np.zeros((self.ny, self.nx, 3), dtype=np.uint8)
+
+        for ix in range(self.nx):
+            for iy in range(self.ny):
+                if self.grid[ix][iy] == 1:
+                    img[self.ny - 1 - iy, ix] = (255, 255, 255)  # white = occupied
+
+        # draw robot position in green
+        if robot_cell is not None:
+            rx, ry = robot_cell
+            img[self.ny - 1 - ry, rx] = (0, 255, 0)
+
+        # scale up so its actually visible
+        img = cv2.resize(img, (self.nx * 10, self.ny * 10), interpolation=cv2.INTER_NEAREST)
+
+        cv2.namedWindow("Grid Map", cv2.WINDOW_NORMAL)
+        cv2.imshow("Grid Map", img)
+        cv2.waitKey(1)
+
     def mark_obstacle(self, ix, iy):
         self.grid[ix][iy] = 1
         self.dynamic_occupied_cells.append((ix, iy))  # track separately from static
 
-    def mark_obstacle_with_buffer(self, ix, iy, buffer_cells=0):
+    def mark_obstacle_with_buffer(self, ix, iy, buffer_cells=1):
         for dx in range(-buffer_cells, buffer_cells + 1):
             for dy in range(-buffer_cells, buffer_cells + 1):
                 nx = ix + dx
@@ -298,7 +319,10 @@ class VisionSystem:
 
         # CONSTANTS / FINETUNING
         self.min_area = 100
-        self.max_area = 150000
+        self.max_area = 3000000
+        # max_area must be greater than cnn_area_stop (cnn_area_frac * width * height = 276,480)
+        # otherwise objects get filtered out before they are large enough to trigger cnn
+        # 300k is above the CNN trigger threshold but below a merged double-object blob
         self.pixel_tolerance = 50  # how centered to the object
 
         # close enough for CNN using bounding box area
@@ -506,11 +530,18 @@ class VisionSystem:
 
 class RubbishClassifier:
     def __init__(self):
+        self.classifier_types = {
+            0: "cardboard",
+            1: "metal",
+            2: "wood"
+        }
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.resnet18 = resnet18(weights=None)
         in_features = self.resnet18.fc.in_features
         self.resnet18.fc = nn.Linear(in_features, 3)  # change the last layer (fc) into a three classifier
-        self.resnet18.load_state_dict(torch.load("C:\\Users\\hanna\\PycharmProjects\\arai_final_project\\firstmodel.pth", weights_only=True))  # load weights last
+        self.resnet18.load_state_dict(
+            torch.load("C:\\Users\\hanna\\PycharmProjects\\arai_final_project\\cnntrain_15.pth",
+                       weights_only=True))  # load weights last
 
         # Instantiate the model and move it to the device
         self.resnet18 = self.resnet18.to(self.device)
@@ -531,7 +562,9 @@ class RubbishClassifier:
             classification = torch.argmax(output, dim=1).item()  # get a clean 0 1 2 for outputs
             probs = torch.softmax(output, dim=1)
             print(f"cardboard: {probs[0][0]:.3f}, metal: {probs[0][1]:.3f}, wood: {probs[0][2]:.3f}")
-            print(classification)
+
+            label = self.classifier_types[classification]
+            print("I think this is", label)
 
         return classification
 
@@ -572,7 +605,7 @@ class RobotController:
         self.classification = None  # in case we pathfind before cnn
 
         # Tune this for threshold
-        self.obstacle_threshold = 200  # sonar returns mm 50 is 5cm in front (1 cell) + the distrnace from robot centre
+        self.obstacle_threshold = 300  # sonar returns m 50 is 50cm in front (1 cell) + the distrnace from robot centre
         self.path_start_cell = None
 
     def handle_illegal_zone_search(self):
@@ -626,13 +659,14 @@ class RobotController:
                 self.replanning = True
                 print("PATH WIPED: obstacle detected")
                 print(f"Obstacle detected at cell ({ix}, {iy}), replanning")
-        return "PATHFIND", 0.0, 0.0
+                return True  # obstacle found
+        return False  # no obstacle found
 
     def handle_cnn_capture(self):
         frame = self.devices.camera.getImage()
         frame = np.frombuffer(frame, dtype=np.uint8).reshape((self.devices.height, self.devices.width, 4))
         frame = frame[:, :, :3]  # remove alpha channel
-        frame = frame[:, :, ::-1].copy()  # flip bgr to rbg
+        frame = frame[:, :, ::-1].copy()  # flip bgr to rbg on copy to keep frame safe
         frame = Image.fromarray(frame)  # convert to PIL
         if self.vision.locked_rect is not None:
             x, y, w, h = self.vision.locked_rect
@@ -646,19 +680,19 @@ class RobotController:
         self.devices.emitter.send(f"{robot_x},{robot_y}".encode())
         print(f"emitted {robot_x},{robot_y}")
 
-        # WAIT UNTIL SUPERVISOR CONFIRMS REMOVAL
-
         return "PATHFIND", 0.0, 0.0
 
     def handle_pathfind(self):
 
         x, y, robot_yaw = self.devices.get_pose()
         robot_cell = self.grid_map.gps_to_cell(x, y)
+        self.grid_map.visualise_grid(robot_cell)
 
         if self.planned_path is not None:
             dist = self.grid_map.manhattan(robot_cell, self.path_start_cell)
             if dist > 3:  # check if we have moved, don't set the obstacle we have just looked at as obstacle
-                self.check_for_obstacles()  # only check if we are pathfinding
+                if self.check_for_obstacles():  # only check if we are pathfinding and if check for obstacles came true
+                    return "PATHFIND", 0.0, 0.0
         goal_cell = None  # incase never assigned
         if self.travelling == "home":
             goal_world_x, goal_world_y = self.world_reset
@@ -673,6 +707,7 @@ class RobotController:
                 goal_cell = self.grid_map.gps_to_cell(goal_world_x, goal_world_y)
 
         if self.planned_path is None:
+            self.grid_map.clear_dynamic_obstacles()  # clear stale obstacles before replanning
             self.path_start_cell = robot_cell
             self.planned_path = self.planner.astar(robot_cell, goal_cell)
             print("New path:", self.planned_path)
