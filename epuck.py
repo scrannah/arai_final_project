@@ -1,5 +1,4 @@
 from controller import Robot
-from controller import Emitter
 import numpy as np
 import cv2
 import heapq
@@ -9,9 +8,6 @@ import torch.nn as nn
 from torchvision import transforms
 from torchvision.models import resnet18
 from PIL import Image
-
-
-# this is the nested fix version
 
 class RobotDevices:
     def __init__(self):
@@ -43,16 +39,6 @@ class RobotDevices:
         self.sonar = self.robot.getDevice("distance sensor")
         self.sonar.enable(self.timestep)
 
-        self.ps0 = self.robot.getDevice("ps0")
-        self.ps1 = self.robot.getDevice("ps1")
-        self.ps2 = self.robot.getDevice("ps2")
-        self.ps0.enable(self.timestep)
-        self.ps1.enable(self.timestep)
-        self.ps2.enable(self.timestep)
-
-        self.height = self.camera.getHeight()
-        self.width = self.camera.getWidth()
-
     def step(self):
         return self.robot.step(self.timestep)
 
@@ -66,12 +52,6 @@ class RobotDevices:
         y = position[1]
         robot_yaw = self.inertial_unit.getRollPitchYaw()[2]
         return x, y, robot_yaw
-
-    def get_front_approx(self):  # fixed missing colon
-        val0 = self.ps0.getValue()
-        val1 = self.ps1.getValue()
-        val2 = self.ps2.getValue()
-        return (val0 + val1 + val2) / 3
 
     def get_opencv_image(self):
         raw = self.camera.getImage()
@@ -605,7 +585,7 @@ class RobotController:
         self.classification = None  # in case we pathfind before cnn
 
         # Tune this for threshold
-        self.obstacle_threshold = 300  # sonar returns m 50 is 50cm in front (1 cell) + the distrnace from robot centre
+        self.obstacle_threshold = 300  # sonar returns 0-1000 where 1000 = 1 metre, threshold of 300 triggers at 30cm
         self.path_start_cell = None
 
     def handle_illegal_zone_search(self):
