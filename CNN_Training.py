@@ -15,7 +15,7 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Class names for dataset
-class_names = ['metal', 'wood', 'cardboard']
+class_names = ['cardboard', 'metal', 'wood']
 
 
 class DatasetWrapper(Dataset):
